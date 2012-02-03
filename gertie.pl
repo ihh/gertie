@@ -56,41 +56,39 @@ sub prefix_Inside {
 
     # Create Inside matrix
 
-    # q(i,j,sym) = P(seq[i]..seq[j-1] | sym)
+    # p(i,j,sym) = P(seq[i]..seq[j-1] | sym)
     #            = probability that parse tree rooted at sym will generate subseq i..j-1 (inclusive)
-    my @q = map ([map ({}, $_..$len)], 0..$len);
-    for my $i (0..$len) { $q[$i]->[$i]->{$end_id} = 1 }
-    for my $i (0..$len-1) { $q[$i]->[$i+1]->{$seq->[$i]} = 1 }
+    my @p = map ([map ({}, $_..$len)], 0..$len);
+    for my $i (0..$len) { $p[$i]->[$i]->{$end_id} = 1 }
+    for my $i (0..$len-1) { $p[$i]->[$i+1]->{$seq->[$i]} = 1 }
 
-    #   p(i,sym) = P(seq[i]..seq[length-1].. | sym)
+    #   q(i,sym) = \sum_{j=N+1}^\infty p(i,j,sym)
     #            = probability that parse tree rooted at sym will generate prefix i..length-1 (inclusive)
-    my @p = map ({}, 0..$len);
-    $p[$len]->{$end_id} = 1;
-# Commenting out this next line because I *think* it overcounts events, still not quite sure how
-#    $p[$len-1]->{$seq->[$len-1]} = 1;
+    my @q = map ({}, 0..$len);
+    $q[$len]->{$end_id} = 1;
 
     # Inside recursion
     for (my $j = $len; $j >= 0; --$j) {
-	for my $rhs1 (sort {$a<=>$b} keys %{$p[$j]}) {
+	for my $rhs1 (sort {$a<=>$b} keys %{$q[$j]}) {
 
-	    # p(j,lhs) += p(j,rhs1) * \sum_rhs2 P(lhs->rhs1 rhs2)
+	    # q(j,lhs) += q(j,rhs1) * \sum_rhs2 P(lhs->rhs1 rhs2)
 	    while (my ($lhs, $partial_prob) = each %{$partial_prob{$rhs1}}) {
-		$p[$j]->{$lhs} += $p[$j]->{$rhs1} * $partial_prob;
-		warn "p($j,$sym_name[$lhs]) += p($j,$sym_name[$rhs1])[=",$p[$j]->{$rhs1},"] * sum_rhs2 P($sym_name[$lhs]->$sym_name[$rhs1] rhs2)[=", $partial_prob, "]";
+		$q[$j]->{$lhs} += $q[$j]->{$rhs1} * $partial_prob;
+		warn "q($j,$sym_name[$lhs]) += q($j,$sym_name[$rhs1])[=",$q[$j]->{$rhs1},"] * sum_rhs2 P($sym_name[$lhs]->$sym_name[$rhs1] rhs2)[=", $partial_prob, "]";
 	    }
 
-	    # p(j,lhs) += q(j,j,rhs1) * p(j,rhs2) * P(lhs->rhs1 rhs2)
+	    # q(j,lhs) += p(j,j,rhs1) * q(j,rhs2) * P(lhs->rhs1 rhs2)
 	    # ...skip this on the assumption that "lhs->rhs1 rhs2" always yields nonempty Inside sequence for rhs1
 	}
 
-	# k<j: p(k,lhs) += q(k,j,rhs1) * p(j,rhs2) * P(lhs->rhs1 rhs2)
+	# k<j: q(k,lhs) += p(k,j,rhs1) * q(j,rhs2) * P(lhs->rhs1 rhs2)
 	for (my $k = $j - 1; $k >= 0; --$k) {
-	    while (my ($rhs2, $rhs2_prob) = each %{$p[$j]}) {
+	    while (my ($rhs2, $rhs2_prob) = each %{$q[$j]}) {
 		for my $rule (@{$rule_by_rhs2{$rhs2}}) {
 		    my ($lhs, $rhs1, $rule_prob) = @$rule;
-		    if (exists $q[$k]->[$j]->{$rhs1}) {
-			$p[$k]->{$lhs} += $q[$k]->[$j]->{$rhs1} * $rhs2_prob * $rule_prob;
-			warn "p($k,$sym_name[$lhs]) += q($k,$j,$sym_name[$rhs1])[=",$q[$k]->[$j]->{$rhs1},"] * p($j,$sym_name[$rhs2])[=$rhs2_prob] * P($sym_name[$lhs]->$sym_name[$rhs1] $sym_name[$rhs2])[=$rule_prob]";
+		    if (exists $p[$k]->[$j]->{$rhs1}) {
+			$q[$k]->{$lhs} += $p[$k]->[$j]->{$rhs1} * $rhs2_prob * $rule_prob;
+			warn "q($k,$sym_name[$lhs]) += p($k,$j,$sym_name[$rhs1])[=",$p[$k]->[$j]->{$rhs1},"] * q($j,$sym_name[$rhs2])[=$rhs2_prob] * P($sym_name[$lhs]->$sym_name[$rhs1] $sym_name[$rhs2])[=$rule_prob]";
 		    }
 		}
 	    }
@@ -98,38 +96,38 @@ sub prefix_Inside {
 
 	for (my $i = $j; $i <= $len; ++$i) {
 
-	    # q(i,j,lhs) += q(i,j,rhs1) * q(j,j,rhs2) * P(lhs->rhs1 rhs2)
-	    for my $rhs1 (sort {$a<=>$b} keys %{$q[$i]->[$j]}) {
+	    # p(i,j,lhs) += p(i,j,rhs1) * p(j,j,rhs2) * P(lhs->rhs1 rhs2)
+	    for my $rhs1 (sort {$a<=>$b} keys %{$p[$i]->[$j]}) {
 		for my $rule (@{$rule_by_rhs1{$rhs1}}) {
 		    my ($lhs, $rhs2, $rule_prob) = @$rule;
-		    if (exists $q[$j]->[$j]->{$rhs2}) {
-			$q[$i]->[$j]->{$lhs} += $q[$i]->[$j]->{$rhs1} * $q[$j]->[$j]->{$rhs2} * $rule_prob;
+		    if (exists $p[$j]->[$j]->{$rhs2}) {
+			$p[$i]->[$j]->{$lhs} += $p[$i]->[$j]->{$rhs1} * $p[$j]->[$j]->{$rhs2} * $rule_prob;
 		    }
 		}
 	    }
 
-	    # k>j: q(i,k,lhs) += q(i,j,rhs1) * q(j,k,rhs2) * P(lhs->rhs1 rhs2)
+	    # k>j: p(i,k,lhs) += p(i,j,rhs1) * p(j,k,rhs2) * P(lhs->rhs1 rhs2)
 	    for (my $k = $j + 1; $k <= $len; ++$k) {
-		for my $rhs1 (keys %{$q[$i]->[$j]}) {
+		for my $rhs1 (keys %{$p[$i]->[$j]}) {
 		    for my $rule (@{$rule_by_rhs1{$rhs1}}) {
 			my ($lhs, $rhs2, $rule_prob) = @$rule;
-			if (exists $q[$j]->[$k]->{$rhs2}) {
-			    $q[$i][$k]->{$lhs} += $q[$i][$j]->{$rhs1} * $q[$j][$k]->{$rhs2} * $rule_prob;
+			if (exists $p[$j]->[$k]->{$rhs2}) {
+			    $p[$i][$k]->{$lhs} += $p[$i][$j]->{$rhs1} * $p[$j][$k]->{$rhs2} * $rule_prob;
 			}
 		    }
 		}
 	    }
 
-	    # q(i,j,lhs) += q(i,i,rhs1) * q(i,j,rhs2) * P(lhs->rhs1 rhs2)
+	    # p(i,j,lhs) += p(i,i,rhs1) * p(i,j,rhs2) * P(lhs->rhs1 rhs2)
 	    # ...skip this on the assumption that "lhs->rhs1 rhs2" always yields nonempty Inside sequence for rhs1
 
-	    # k<i: q(k,j,lhs) += q(k,i,rhs1) * q(i,j,rhs2) * P(lhs->rhs1 rhs2)
+	    # k<i: p(k,j,lhs) += p(k,i,rhs1) * p(i,j,rhs2) * P(lhs->rhs1 rhs2)
 	    for (my $k = $i - 1; $k >= 0; --$k) {
-		for my $rhs2 (keys %{$q[$i]->[$j]}) {
+		for my $rhs2 (keys %{$p[$i]->[$j]}) {
 		    for my $rule (@{$rule_by_rhs2{$rhs2}}) {
 			my ($lhs, $rhs1, $rule_prob) = @$rule;
-			if (exists $q[$k]->[$i]->{$rhs1}) {
-			    $q[$k][$j]->{$lhs} += $q[$k][$i]->{$rhs1} * $q[$i][$j]->{$rhs2} * $rule_prob;
+			if (exists $p[$k]->[$i]->{$rhs1}) {
+			    $p[$k][$j]->{$lhs} += $p[$k][$i]->{$rhs1} * $p[$i][$j]->{$rhs2} * $rule_prob;
 			}
 		    }
 		}
@@ -137,32 +135,32 @@ sub prefix_Inside {
 	}
     }
 
-    return (\@p, \@q);
+    return (\@q, \@p);
 }
 
 sub dump_Inside {
-    my ($p, $q) = @_;
-    my $len = $#$p;
+    my ($q, $p) = @_;
+    my $len = $#$q;
     for (my $i = $len; $i >= 0; --$i) {
 
 	print "Prefix $i..:";
-	for my $sym (sort {$a<=>$b} keys %{$p->[$i]}) {
-	    print " ", $sym_name[$sym], "=>", $p->[$i]->{$sym};
+	for my $sym (sort {$a<=>$b} keys %{$q->[$i]}) {
+	    print " ", $sym_name[$sym], "=>", $q->[$i]->{$sym};
 	}
 	print "\n";
 
 	for (my $j = $i; $j <= $len; ++$j) {
 	    print "Inside ($i,$j):";
-	    for my $sym (sort {$a<=>$b} keys %{$q->[$i]->[$j]}) {
-		print " ", $sym_name[$sym], "=>", $q->[$i]->[$j]->{$sym};
+	    for my $sym (sort {$a<=>$b} keys %{$p->[$i]->[$j]}) {
+		print " ", $sym_name[$sym], "=>", $p->[$i]->[$j]->{$sym};
 	    }
 	    print "\n";
 	}
     }
 }
 
-my @seq = qw(D);
+my @seq = qw(D);  # test sequence for GRAMMAR file
 my @tok = tokenize (\@seq);
 warn "tok: (@tok)";
-my ($p, $q) = prefix_Inside (\@tok);
-dump_Inside ($p, $q);
+my ($q, $p) = prefix_Inside (\@tok);
+dump_Inside ($q, $p);
