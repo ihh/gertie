@@ -104,7 +104,7 @@ sub index_rules {
     for my $rule (@{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
 	$prob /= $self->outgoing_prob->{$lhs};
-	warn "$lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
+	warn "Indexed rule: $lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
 	my ($lhs_id, $rhs1_id, $rhs2_id) = map ($self->sym_id->{$_}, $lhs, $rhs1, $rhs2);
 	push @{$self->rule_by_rhs1->{$rhs1_id}}, [$lhs_id, $rhs2_id, $prob, $rule_index];
 	push @{$self->rule_by_rhs2->{$rhs2_id}}, [$lhs_id, $rhs1_id, $prob, $rule_index];
@@ -164,14 +164,12 @@ sub prefix_Inside {
 		$rhsq->insert ($rhs1, $rhs1);
 	    }
 	    while (defined (my $rhs1 = $rhsq->pop)) {
-#		warn "Pushing from i=$i,j=$j,rhs1=",$self->sym_name->[$rhs1] if $self->verbose > 1;
 		for my $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
 		    my ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
-#		    warn "Trying rule $rule_index: P(",$self->sym_name->[$lhs],'->',$self->sym_name->[$rhs1],' ',$self->sym_name->[$rhs2],") = $rule_prob", if $self->verbose > 1;
 		    if (exists $p->[$j]->[$j]->{$rhs2}) {
 			$rhsq->insert ($lhs, $lhs) unless exists $p->[$i]->[$j]->{$lhs};
 			$p->[$i]->[$j]->{$lhs} += $p->[$i]->[$j]->{$rhs1} * $p->[$j]->[$j]->{$rhs2} * $rule_prob;
-			warn "p($i,$j,",$self->sym_name->[$lhs],") += p($i,$j,",$self->sym_name->[$rhs1],")[=",$p->[$i]->[$j]->{$rhs1},"] * p($j,$j,",$self->sym_name->[$rhs2],")[=",$p->[$j]->[$j]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
+			warn "Inside fill: p($i,$j,",$self->sym_name->[$lhs],") += p($i,$j,",$self->sym_name->[$rhs1],")[=",$p->[$i]->[$j]->{$rhs1},"] * p($j,$j,",$self->sym_name->[$rhs2],")[=",$p->[$j]->[$j]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
 		    }
 		}
 	    }
@@ -183,7 +181,7 @@ sub prefix_Inside {
 			my ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
 			if (exists $p->[$j]->[$k]->{$rhs2}) {
 			    $p->[$i][$k]->{$lhs} += $p->[$i][$j]->{$rhs1} * $p->[$j][$k]->{$rhs2} * $rule_prob;
-			    warn "p($i,$k,",$self->sym_name->[$lhs],") += p($i,$k,",$self->sym_name->[$rhs1],")[=",$p->[$i]->[$k]->{$rhs1},"] * p($j,$k,",$self->sym_name->[$rhs2],")[=",$p->[$j]->[$k]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
+			    warn "Inside fill: p($i,$k,",$self->sym_name->[$lhs],") += p($i,$k,",$self->sym_name->[$rhs1],")[=",$p->[$i]->[$k]->{$rhs1},"] * p($j,$k,",$self->sym_name->[$rhs2],")[=",$p->[$j]->[$k]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
 			}
 		    }
 		}
@@ -199,7 +197,7 @@ sub prefix_Inside {
 			my ($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
 			if (exists $p->[$k]->[$i]->{$rhs1}) {
 			    $p->[$k][$j]->{$lhs} += $p->[$k][$i]->{$rhs1} * $p->[$i][$j]->{$rhs2} * $rule_prob;
-			    warn "p($k,$j,",$self->sym_name->[$lhs],") += p($k,$i,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$i]->{$rhs1},"] * p($i,$j,",$self->sym_name->[$rhs2],")[=",$p->[$i]->[$j]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
+			    warn "Inside fill: p($k,$j,",$self->sym_name->[$lhs],") += p($k,$i,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$i]->{$rhs1},"] * p($i,$j,",$self->sym_name->[$rhs2],")[=",$p->[$i]->[$j]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
 			}
 		    }
 		}
@@ -215,7 +213,7 @@ sub prefix_Inside {
 	    while (my ($lhs, $partial_prob) = each %{$self->partial_prob->{$rhs1}}) {
 		$rhsq->insert ($lhs, $lhs) unless exists $q->[$i]->{$lhs};
 		$q->[$i]->{$lhs} += $q->[$i]->{$rhs1} * $partial_prob;
-		warn "q($i,",$self->sym_name->[$lhs],") += q($i,",$self->sym_name->[$rhs1],")[=",$q->[$i]->{$rhs1},"] * sum_rhs2 P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," *)[=", $partial_prob, "]" if $self->verbose;
+		warn "Inside fill: q($i,",$self->sym_name->[$lhs],") += q($i,",$self->sym_name->[$rhs1],")[=",$q->[$i]->{$rhs1},"] * sum_rhs2 P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," *)[=", $partial_prob, "]" if $self->verbose;
 	    }
 		
 	    # q(i,lhs) += p(i,i,rhs1) * q(i,rhs2) * P(lhs->rhs1 rhs2)
@@ -229,7 +227,7 @@ sub prefix_Inside {
 		    my ($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
 		    if (exists $p->[$k]->[$i]->{$rhs1}) {
 			$q->[$k]->{$lhs} += $p->[$k]->[$i]->{$rhs1} * $rhs2_prob * $rule_prob;
-			warn "q($k,",$self->sym_name->[$lhs],") += p($k,$i,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$i]->{$rhs1},"] * q($i,",$self->sym_name->[$rhs2],")[=$rhs2_prob] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
+			warn "Inside fill: q($k,",$self->sym_name->[$lhs],") += p($k,$i,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$i]->{$rhs1},"] * q($i,",$self->sym_name->[$rhs2],")[=$rhs2_prob] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
 		    }
 		}
 	    }
