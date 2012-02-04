@@ -20,7 +20,7 @@ use Hash::PriorityQueue;
 use AutoHash;
 
 @ISA = qw (AutoHash);
-@EXPORT = qw (new_from_file AUTOLOAD);
+@EXPORT = qw (new_from_file simulate tokenize prefix_Inside print_Inside traceback_Inside AUTOLOAD);
 @EXPORT_OK = @EXPORT;
 
 # constructor
@@ -78,6 +78,7 @@ sub add_rule {
     die if $lhs eq $self->end;
     die if $rhs1 eq $self->end && $rhs2 ne $self->end;
     die if $prob < 0;
+    $self->{'start'} = $lhs unless defined $self->{'start'};
     return if $prob == 0;
     push @{$self->rule}, [$lhs, $rhs1, $rhs2, $prob, @{$self->rule} + 0];
     $self->outgoing_prob->{$lhs} += $prob;
@@ -93,11 +94,13 @@ sub index_symbols {
     $self->{'end_id'} = $self->sym_id->{$self->end};
     $self->{'term_name'} = [$self->graph->sink_vertices];
     $self->{'term_id'} = [map ($self->sym_id->{$_}, @{$self->term_name})];
+    $self->{'is_term'} = [map (($_ => 1), @{$self->term_id})];
 }
 
 # Normalize & index
 sub index_rules {
     my ($self) = @_;
+    $self->{'rule_by_lhs_rhs1'} = {};
     $self->{'rule_by_rhs1'} = {};
     $self->{'rule_by_rhs2'} = {};
     $self->{'partial_prob'} = {};
@@ -106,6 +109,7 @@ sub index_rules {
 	$prob /= $self->outgoing_prob->{$lhs};
 	warn "Indexed rule: $lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
 	my ($lhs_id, $rhs1_id, $rhs2_id) = map ($self->sym_id->{$_}, $lhs, $rhs1, $rhs2);
+	push @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}}, [$rhs2_id, $prob, $rule_index];
 	push @{$self->rule_by_rhs1->{$rhs1_id}}, [$lhs_id, $rhs2_id, $prob, $rule_index];
 	push @{$self->rule_by_rhs2->{$rhs2_id}}, [$lhs_id, $rhs1_id, $prob, $rule_index];
 	$self->partial_prob->{$rhs1_id}->{$lhs_id} += $prob;
@@ -257,6 +261,108 @@ sub print_Inside {
 	    print "\n";
 	}
     }
+}
+
+sub traceback_Inside {
+    my ($self, $p, $q) = @_;
+    my $len = @$p + 0;
+    my $is_complete = sample ($q->[0]->{$self->start},
+			      $p->[0]->[$len]->{$self->start});
+    if ($is_complete) {
+	return $self->traceback_Inside_p ($p, 0, $len, $self->start);
+    } else {
+	return $self->traceback_Inside_q ($p, $q, 0, $self->start);
+    }
+}
+
+sub traceback_Inside_p {
+    my ($self, $p, $i, $j, $lhs) = @_;
+    return undef if $self->is_term ($lhs);
+    my (@rhs_k, @prob);
+    my $rule_by_lhs_rhs1 = $self->rule_by_lhs->{$lhs};
+    die "Traceback error" unless defined $rule_by_lhs_rhs1;
+    for (my $k = $i; $k <= $j; ++$k) {
+	for my $rhs1 (keys %$rule_by_lhs_rhs1) {
+	    if (defined $p->[$i]->[$k]->{$rhs1}) {
+		for my $rule (@{$rule_by_lhs_rhs1->{$rhs1}}) {
+		    my ($rhs2, $rule_prob, $rule_index) = @$rule;
+		    if (defined $p->[$k]->[$j]->{$rhs2}) {
+			push @rhs_k, [$rhs1, $rhs2, $k];
+			push @prob, $p->[$i]->[$k]->{$rhs1} * $p->[$k]->[$j]->{$rhs2} * $rule_prob;
+		    }
+		}
+	    }
+	}
+    }
+    die "Traceback error" unless @prob;
+    my ($rhs1, $rhs2, $k) = @{sample (\@prob, \@rhs_k)};
+    return [$lhs,
+	    $self->traceback_Inside_p ($p, $i, $k, $rhs1),
+	    $self->traceback_Inside_p ($p, $k, $j, $rhs2)];
+}
+
+sub traceback_Inside_q {
+    my ($self, $p, $q, $i, $lhs) = @_;
+    my $len = @$p + 0;
+    my (@rhs_k, @prob);
+    my $rule_by_lhs_rhs1 = $self->rule_by_lhs->{$lhs};
+    die "Traceback error" unless defined $rule_by_lhs_rhs1;
+    while (my ($rhs1, $rule_list) = each %$rule_by_lhs_rhs1) {
+	for (my $k = $i; $k <= $len; ++$k) {
+	    if (defined $p->[$i]->[$k]->{$rhs1}) {
+		for my $rule (@$rule_list) {
+		    my ($rhs2, $rule_prob, $rule_index) = @$rule;
+		    if (defined $q->[$k]->{$rhs2}) {
+			push @rhs_k, [$rhs1, $rhs2, $k];
+			push @prob, $p->[$i]->[$k]->{$rhs1} * $q->[$k]->{$rhs2} * $rule_prob;
+		    }
+		}
+	    }
+	}
+	if (defined $q->[$i]->{$rhs1}) {
+	    for my $rule (@$rule_list) {
+		my ($rhs2, $rule_prob, $rule_index) = @$rule;
+		push @rhs_k, [$rhs1, $rhs2, $len + 1];
+		push @prob, $q->[$i]->{$rhs1} * $rule_prob;
+	    }
+	}
+    }
+    die "Traceback error" unless @prob;
+    my ($rhs1, $rhs2, $k) = @{sample (\@prob, \@rhs_k)};
+    return [$lhs,
+	    $k > $len
+	    ? ($self->traceback_Inside_q ($p, $q, $i, $rhs1),
+	       $self->simulate ($rhs2))
+	    : ($self->traceback_Inside_p ($p, $i, $k, $rhs1),
+	       $self->traceback_Inside_q ($p, $q, $k, $rhs2))];
+}
+
+sub simulate {
+    my ($self, $lhs) = @_;
+    my $rule_by_lhs_rhs1 = $self->rule_by_lhs->{$lhs};
+    return [$lhs, undef] unless defined $rule_by_lhs_rhs1;
+    my (@rhs, @prob);
+    while (my ($rhs1, $rule_list) = each %$rule_by_lhs_rhs1) {
+	for my $rule (@$rule_list) {
+	    my ($rhs2, $rule_prob, $rule_index) = @$rule;
+	    push @rhs, [$rhs1, $rhs2];
+	    push @prob, $rule_prob;
+	}
+    }
+    my ($rhs1, $rhs2) = @{sample (\@prob, \@rhs)};
+    return [$lhs, $self->simulate($rhs1), $self->simulate($rhs2)];
+}
+
+sub sample {
+    my ($p_array, $opt_array) = @_;
+    my $total = 0;
+    for my $p (@$p_array) { $total += $p }
+    my $r = rand() * $total;
+    for my $i (0..$#$p_array) {
+	$r -= $p_array->[$i];
+	return defined($opt_array) ? $opt_array->[$i] : $i if $r <= 0;
+    }
+    return defined($opt_array) ? $opt_array->[$#$opt_array] : $#$p_array;
 }
 
 1;
