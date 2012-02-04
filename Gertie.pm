@@ -56,6 +56,7 @@ sub parse_file {
     close FILE;
     $self->index_symbols();
     warn "Symbols: (@{$self->sym_name})" if $self->verbose;
+    warn "Terminals: (@{$self->term_name})" if $self->verbose;
     $self->index_rules();
 }
 
@@ -86,9 +87,12 @@ sub add_rule {
 # Treating each rule "A->B C" as an edge "A->B", compute toposort
 sub index_symbols {
     my ($self) = @_;
+    croak "Transition graph is cyclic!" if $self->graph->is_cyclic;
     $self->{'sym_name'} = [reverse $self->graph->topological_sort];
     $self->{'sym_id'} = {map (($self->sym_name->[$_] => $_), 0..$#{$self->sym_name})};
     $self->{'end_id'} = $self->sym_id->{$self->end};
+    $self->{'term_name'} = [$self->graph->sink_vertices];
+    $self->{'term_id'} = [map ($self->sym_id->{$_}, @{$self->term_name})];
 }
 
 # Normalize & index
@@ -137,33 +141,32 @@ sub tokenize {
 sub prefix_Inside {
     my ($self, $tokseq) = @_;
     my $len = @{$tokseq} + 0;
-    my ($i, $j, $k, $rule, $lhs, $rhs1, $rhs2, $rule_prob, $rule_index, $rhs2_prob, $partial_prob);
 
     # Create Inside matrix
     # p(i,j,sym) = P(seq[i]..seq[j-1] | sym)
     #            = probability that parse tree rooted at sym will generate subseq i..j-1 (inclusive)
     my $p = [ map ([map ({}, $_..$len)], 0..$len) ];
     my %empty = $self->empty_prob;
-    for $i (0..$len) { $p->[$i]->[$i] = \%empty }
-    for $i (0..$len-1) { $p->[$i]->[$i+1]->{$tokseq->[$i]} = 1 }
+    for my $i (0..$len) { $p->[$i]->[$i] = \%empty }
+    for my $i (0..$len-1) { $p->[$i]->[$i+1]->{$tokseq->[$i]} = 1 }
 
     #   q(i,sym) = \sum_{j=N+1}^\infty p(i,j,sym)
     #            = probability that parse tree rooted at sym will generate prefix i..length-1 (inclusive)
     my $q = [ map ({}, 0..$len) ];
-    $q->[$len]->{$self->end_id} = 1;
+    for my $term_id (@{$self->term_id}) { $q->[$len]->{$term_id} = 1 }
 
     # Inside recursion
-    for ($i = $len; $i >= 0; --$i) {
+    for (my $i = $len; $i >= 0; --$i) {
 	# j>i: p(i,j,lhs) += p(i,j,rhs1) * p(j,j,rhs2) * P(lhs->rhs1 rhs2)
-	for ($j = $i + 1; $j <= $len; ++$j) {
+	for (my $j = $i + 1; $j <= $len; ++$j) {
 	    my $rhsq = Hash::PriorityQueue->new;
 	    for my $rhs1 (keys %{$p->[$i]->[$j]}) {
 		$rhsq->insert ($rhs1, $rhs1);
 	    }
-	    while (defined ($rhs1 = $rhsq->pop)) {
+	    while (defined (my $rhs1 = $rhsq->pop)) {
 #		warn "Pushing from i=$i,j=$j,rhs1=",$self->sym_name->[$rhs1] if $self->verbose > 1;
-		for $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
-		    ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
+		for my $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
+		    my ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
 #		    warn "Trying rule $rule_index: P(",$self->sym_name->[$lhs],'->',$self->sym_name->[$rhs1],' ',$self->sym_name->[$rhs2],") = $rule_prob", if $self->verbose > 1;
 		    if (exists $p->[$j]->[$j]->{$rhs2}) {
 			$rhsq->insert ($lhs, $lhs) unless exists $p->[$i]->[$j]->{$lhs};
@@ -174,10 +177,10 @@ sub prefix_Inside {
 	    }
 
 	    # k>j: p(i,k,lhs) += p(i,j,rhs1) * p(j,k,rhs2) * P(lhs->rhs1 rhs2)
-	    for ($k = $j + 1; $k <= $len; ++$k) {
-		for $rhs1 (keys %{$p->[$i]->[$j]}) {
-		    for $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
-			($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
+	    for (my $k = $j + 1; $k <= $len; ++$k) {
+		for my $rhs1 (keys %{$p->[$i]->[$j]}) {
+		    for my $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
+			my ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
 			if (exists $p->[$j]->[$k]->{$rhs2}) {
 			    $p->[$i][$k]->{$lhs} += $p->[$i][$j]->{$rhs1} * $p->[$j][$k]->{$rhs2} * $rule_prob;
 			    warn "p($i,$k,",$self->sym_name->[$lhs],") += p($i,$k,",$self->sym_name->[$rhs1],")[=",$p->[$i]->[$k]->{$rhs1},"] * p($j,$k,",$self->sym_name->[$rhs2],")[=",$p->[$j]->[$k]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
@@ -190,10 +193,10 @@ sub prefix_Inside {
 	    # ...skip this on the assumption that "lhs->rhs1 rhs2" always yields nonempty Inside sequence for rhs1
 
 	    # k<i: p(k,j,lhs) += p(k,i,rhs1) * p(i,j,rhs2) * P(lhs->rhs1 rhs2)
-	    for ($k = $i - 1; $k >= 0; --$k) {
-		for $rhs2 (keys %{$p->[$i]->[$j]}) {
-		    for $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
-			($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
+	    for (my $k = $i - 1; $k >= 0; --$k) {
+		for my $rhs2 (keys %{$p->[$i]->[$j]}) {
+		    for my $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
+			my ($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
 			if (exists $p->[$k]->[$i]->{$rhs1}) {
 			    $p->[$k][$j]->{$lhs} += $p->[$k][$i]->{$rhs1} * $p->[$i][$j]->{$rhs2} * $rule_prob;
 			    warn "p($k,$j,",$self->sym_name->[$lhs],") += p($k,$i,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$i]->{$rhs1},"] * p($i,$j,",$self->sym_name->[$rhs2],")[=",$p->[$i]->[$j]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
@@ -207,9 +210,9 @@ sub prefix_Inside {
 	for my $rhs1 (keys %{$q->[$i]}) {
 	    $rhsq->insert ($rhs1, $rhs1);
 	}
-	while (defined ($rhs1 = $rhsq->pop)) {
+	while (defined (my $rhs1 = $rhsq->pop)) {
 	    # q(i,lhs) += q(i,rhs1) * \sum_rhs2 P(lhs->rhs1 rhs2)
-	    while (($lhs, $partial_prob) = each %{$self->partial_prob->{$rhs1}}) {
+	    while (my ($lhs, $partial_prob) = each %{$self->partial_prob->{$rhs1}}) {
 		$rhsq->insert ($lhs, $lhs) unless exists $q->[$i]->{$lhs};
 		$q->[$i]->{$lhs} += $q->[$i]->{$rhs1} * $partial_prob;
 		warn "q($i,",$self->sym_name->[$lhs],") += q($i,",$self->sym_name->[$rhs1],")[=",$q->[$i]->{$rhs1},"] * sum_rhs2 P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," *)[=", $partial_prob, "]" if $self->verbose;
@@ -220,10 +223,10 @@ sub prefix_Inside {
 	}
 
 	# k<i: q(k,lhs) += p(k,i,rhs1) * q(i,rhs2) * P(lhs->rhs1 rhs2)
-	for ($k = $i - 1; $k >= 0; --$k) {
-	    while (($rhs2, $rhs2_prob) = each %{$q->[$i]}) {
-		for $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
-		    ($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
+	for (my $k = $i - 1; $k >= 0; --$k) {
+	    while (my ($rhs2, $rhs2_prob) = each %{$q->[$i]}) {
+		for my $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
+		    my ($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
 		    if (exists $p->[$k]->[$i]->{$rhs1}) {
 			$q->[$k]->{$lhs} += $p->[$k]->[$i]->{$rhs1} * $rhs2_prob * $rule_prob;
 			warn "q($k,",$self->sym_name->[$lhs],") += p($k,$i,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$i]->{$rhs1},"] * q($i,",$self->sym_name->[$rhs2],")[=$rhs2_prob] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
