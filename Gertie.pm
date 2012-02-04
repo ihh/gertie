@@ -277,7 +277,7 @@ sub traceback_Inside {
 
 sub traceback_Inside_p {
     my ($self, $p, $i, $j, $lhs) = @_;
-    return undef if $self->is_term ($lhs);
+    return [$lhs, undef, undef] if $self->is_term->{$lhs};
     my (@rhs_k, @prob);
     my $rule_by_lhs_rhs1 = $self->rule_by_lhs->{$lhs};
     die "Traceback error" unless defined $rule_by_lhs_rhs1;
@@ -304,6 +304,7 @@ sub traceback_Inside_p {
 sub traceback_Inside_q {
     my ($self, $p, $q, $i, $lhs) = @_;
     my $len = @$p + 0;
+    return [$lhs, undef, undef] if $self->is_term->{$lhs} && $i == $len;
     my (@rhs_k, @prob);
     my $rule_by_lhs_rhs1 = $self->rule_by_lhs->{$lhs};
     die "Traceback error" unless defined $rule_by_lhs_rhs1;
@@ -339,8 +340,9 @@ sub traceback_Inside_q {
 
 sub simulate {
     my ($self, $lhs) = @_;
+    return [$lhs, undef, undef] if $self->is_term->{$lhs};
     my $rule_by_lhs_rhs1 = $self->rule_by_lhs->{$lhs};
-    return [$lhs, undef] unless defined $rule_by_lhs_rhs1;
+    die "Simulation error" unless defined $rule_by_lhs_rhs1;
     my (@rhs, @prob);
     while (my ($rhs1, $rule_list) = each %$rule_by_lhs_rhs1) {
 	for my $rule (@$rule_list) {
