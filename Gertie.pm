@@ -213,7 +213,7 @@ sub prefix_Inside {
 	    while (my ($lhs, $partial_prob) = each %{$self->partial_prob->{$rhs1}}) {
 		$rhsq->insert ($lhs, $lhs) unless exists $q->[$i]->{$lhs};
 		$q->[$i]->{$lhs} += $q->[$i]->{$rhs1} * $partial_prob;
-		warn "Inside fill: q($i,",$self->sym_name->[$lhs],") += q($i,",$self->sym_name->[$rhs1],")[=",$q->[$i]->{$rhs1},"] * sum_rhs2 P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," *)[=", $partial_prob, "]" if $self->verbose;
+		warn "Inside fill: q($i,",$self->sym_name->[$lhs],") += q($i,",$self->sym_name->[$rhs1],")[=",$q->[$i]->{$rhs1},"] * sum_\$X P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," \$X)[=", $partial_prob, "]" if $self->verbose;
 	    }
 		
 	    # q(i,lhs) += p(i,i,rhs1) * q(i,rhs2) * P(lhs->rhs1 rhs2)
