@@ -91,10 +91,11 @@ sub index_symbols {
     croak "Transition graph is cyclic!" if $self->graph->is_cyclic;
     $self->{'sym_name'} = [reverse $self->graph->topological_sort];
     $self->{'sym_id'} = {map (($self->sym_name->[$_] => $_), 0..$#{$self->sym_name})};
+    $self->{'start_id'} = $self->sym_id->{$self->start};
     $self->{'end_id'} = $self->sym_id->{$self->end};
     $self->{'term_name'} = [$self->graph->sink_vertices];
     $self->{'term_id'} = [map ($self->sym_id->{$_}, @{$self->term_name})];
-    $self->{'is_term'} = [map (($_ => 1), @{$self->term_id})];
+    $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
 }
 
 # Normalize & index
@@ -244,7 +245,7 @@ sub prefix_Inside {
 
 sub print_Inside {
     my ($self, $p, $q) = @_;
-    my $len = $#$q;
+    my $len = $#$p;
     for (my $i = $len; $i >= 0; --$i) {
 
 	print "Prefix $i..:";
@@ -265,22 +266,25 @@ sub print_Inside {
 
 sub traceback_Inside {
     my ($self, $p, $q) = @_;
-    my $len = @$p + 0;
-    my $is_complete = sample ($q->[0]->{$self->start},
-			      $p->[0]->[$len]->{$self->start});
+    my $len = $#$p;
+    my $q_prob = $q->[0]->{$self->start_id};
+    my $p_prob = $p->[0]->[$len]->{$self->start_id};
+    my $is_complete = sample ([defined($q_prob) ? $q_prob : 0,
+			       defined($p_prob) ? $p_prob : 0],
+			      [0, 1]);
     if ($is_complete) {
-	return $self->traceback_Inside_p ($p, 0, $len, $self->start);
+	return $self->traceback_Inside_p ($p, 0, $len, $self->start_id);
     } else {
-	return $self->traceback_Inside_q ($p, $q, 0, $self->start);
+	return $self->traceback_Inside_q ($p, $q, 0, $self->start_id);
     }
 }
 
 sub traceback_Inside_p {
     my ($self, $p, $i, $j, $lhs) = @_;
-    return [$lhs, undef, undef] if $self->is_term->{$lhs};
+    return [$self->sym_name->[$lhs]] if $self->is_term->{$lhs};
     my (@rhs_k, @prob);
-    my $rule_by_lhs_rhs1 = $self->rule_by_lhs->{$lhs};
-    die "Traceback error" unless defined $rule_by_lhs_rhs1;
+    my $rule_by_lhs_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
+    confess "Traceback error" unless defined $rule_by_lhs_rhs1;
     for (my $k = $i; $k <= $j; ++$k) {
 	for my $rhs1 (keys %$rule_by_lhs_rhs1) {
 	    if (defined $p->[$i]->[$k]->{$rhs1}) {
@@ -294,20 +298,20 @@ sub traceback_Inside_p {
 	    }
 	}
     }
-    die "Traceback error" unless @prob;
+    confess "Traceback error" unless @prob;
     my ($rhs1, $rhs2, $k) = @{sample (\@prob, \@rhs_k)};
-    return [$lhs,
+    return [$self->sym_name->[$lhs],
 	    $self->traceback_Inside_p ($p, $i, $k, $rhs1),
 	    $self->traceback_Inside_p ($p, $k, $j, $rhs2)];
 }
 
 sub traceback_Inside_q {
     my ($self, $p, $q, $i, $lhs) = @_;
-    my $len = @$p + 0;
-    return [$lhs, undef, undef] if $self->is_term->{$lhs} && $i == $len;
+    my $len = $#$p;
+    return [$self->sym_name->[$lhs]] if $self->is_term->{$lhs} && $i == $len;
     my (@rhs_k, @prob);
-    my $rule_by_lhs_rhs1 = $self->rule_by_lhs->{$lhs};
-    die "Traceback error" unless defined $rule_by_lhs_rhs1;
+    my $rule_by_lhs_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
+    confess "Traceback error" unless defined $rule_by_lhs_rhs1;
     while (my ($rhs1, $rule_list) = each %$rule_by_lhs_rhs1) {
 	for (my $k = $i; $k <= $len; ++$k) {
 	    if (defined $p->[$i]->[$k]->{$rhs1}) {
@@ -328,9 +332,9 @@ sub traceback_Inside_q {
 	    }
 	}
     }
-    die "Traceback error" unless @prob;
+    confess "Traceback error" unless @prob;
     my ($rhs1, $rhs2, $k) = @{sample (\@prob, \@rhs_k)};
-    return [$lhs,
+    return [$self->sym_name->[$lhs],
 	    $k > $len
 	    ? ($self->traceback_Inside_q ($p, $q, $i, $rhs1),
 	       $self->simulate ($rhs2))
@@ -340,9 +344,10 @@ sub traceback_Inside_q {
 
 sub simulate {
     my ($self, $lhs) = @_;
-    return [$lhs, undef, undef] if $self->is_term->{$lhs};
-    my $rule_by_lhs_rhs1 = $self->rule_by_lhs->{$lhs};
-    die "Simulation error" unless defined $rule_by_lhs_rhs1;
+    $lhs = $self->start_id unless defined $lhs;
+    return [$self->sym_name->[$lhs]] if $self->is_term->{$lhs};
+    my $rule_by_lhs_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
+    confess "Simulation error: lhs=", $self->sym_name->[$lhs] unless defined $rule_by_lhs_rhs1;
     my (@rhs, @prob);
     while (my ($rhs1, $rule_list) = each %$rule_by_lhs_rhs1) {
 	for my $rule (@$rule_list) {
@@ -352,13 +357,18 @@ sub simulate {
 	}
     }
     my ($rhs1, $rhs2) = @{sample (\@prob, \@rhs)};
-    return [$lhs, $self->simulate($rhs1), $self->simulate($rhs2)];
+    return [$self->sym_name->[$lhs],
+	    $self->simulate($rhs1),
+	    $self->simulate($rhs2)];
 }
 
 sub sample {
     my ($p_array, $opt_array) = @_;
     my $total = 0;
-    for my $p (@$p_array) { $total += $p }
+    for my $p (@$p_array) {
+	confess "Undefined probability" unless defined $p;
+	$total += $p;
+    }
     my $r = rand() * $total;
     for my $i (0..$#$p_array) {
 	$r -= $p_array->[$i];
