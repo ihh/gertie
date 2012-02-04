@@ -20,7 +20,7 @@ use Hash::PriorityQueue;
 use AutoHash;
 
 @ISA = qw (AutoHash);
-@EXPORT = qw (new_from_file simulate tokenize prefix_Inside print_Inside traceback_Inside AUTOLOAD);
+@EXPORT = qw (new_from_file simulate tokenize prefix_Inside traceback_Inside print_Inside print_parse_tree AUTOLOAD);
 @EXPORT_OK = @EXPORT;
 
 # constructor
@@ -246,22 +246,24 @@ sub prefix_Inside {
 sub print_Inside {
     my ($self, $p, $q) = @_;
     my $len = $#$p;
+    my @out;
     for (my $i = $len; $i >= 0; --$i) {
 
-	print "Prefix $i..:";
+	push @out, "Prefix $i..:";
 	for my $sym (sort {$a<=>$b} keys %{$q->[$i]}) {
-	    print " ", $self->sym_name->[$sym], "=>", $q->[$i]->{$sym};
+	    push @out, " ", $self->sym_name->[$sym], "=>", $q->[$i]->{$sym};
 	}
-	print "\n";
+	push @out, "\n";
 
 	for (my $j = $i; $j <= $len; ++$j) {
-	    print "Inside ($i,$j):";
+	    push @out, "Inside ($i,$j):";
 	    for my $sym (sort {$a<=>$b} keys %{$p->[$i]->[$j]}) {
-		print " ", $self->sym_name->[$sym], "=>", $p->[$i]->[$j]->{$sym};
+		push @out, " ", $self->sym_name->[$sym], "=>", $p->[$i]->[$j]->{$sym};
 	    }
-	    print "\n";
+	    push @out, "\n";
 	}
     }
+    return join ("", @out);
 }
 
 sub traceback_Inside {
@@ -374,6 +376,15 @@ sub sample {
 	return defined($opt_array) ? $opt_array->[$i] : $i if $r <= 0;
     }
     return defined($opt_array) ? $opt_array->[$#$opt_array] : $#$p_array;
+}
+
+sub print_parse_tree {
+    my ($self, $tree) = @_;
+    my $lhs = $tree->[0];
+    my @rhs = (@$tree)[1..$#$tree];
+    return @rhs > 0
+	? ("(" . $lhs . "->" . join (",", map ($self->print_parse_tree($_), @rhs)) . ")")
+	: $lhs;
 }
 
 1;
