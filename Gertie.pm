@@ -14,6 +14,9 @@ use Symbol qw(gensym);
 
 # specific imports
 use Graph::Directed;
+use Hash::PriorityQueue;
+
+# imports from this repository
 use AutoHash;
 
 @ISA = qw (AutoHash);
@@ -134,7 +137,7 @@ sub tokenize {
 sub prefix_Inside {
     my ($self, $tokseq) = @_;
     my $len = @{$tokseq} + 0;
-    my ($i, $j, $k, $rule, $lhs, @rhs1_queue, $rhs1, $rhs2, $rule_prob, $rule_index, $rhs2_prob, $partial_prob);
+    my ($i, $j, $k, $rule, $lhs, $rhs1, $rhs2, $rule_prob, $rule_index, $rhs2_prob, $partial_prob);
 
     # Create Inside matrix
     # p(i,j,sym) = P(seq[i]..seq[j-1] | sym)
@@ -153,18 +156,19 @@ sub prefix_Inside {
     for ($i = $len; $i >= 0; --$i) {
 	# j>i: p(i,j,lhs) += p(i,j,rhs1) * p(j,j,rhs2) * P(lhs->rhs1 rhs2)
 	for ($j = $i + 1; $j <= $len; ++$j) {
-	    @rhs1_queue = sort {$a<=>$b} keys %{$p->[$i]->[$j]};
-	    while (@rhs1_queue) {
-		$rhs1 = shift @rhs1_queue;
+	    my $rhsq = Hash::PriorityQueue->new;
+	    for my $rhs1 (keys %{$p->[$i]->[$j]}) {
+		$rhsq->insert ($rhs1, $rhs1);
+	    }
+	    while (defined ($rhs1 = $rhsq->pop)) {
 #		warn "Pushing from i=$i,j=$j,rhs1=",$self->sym_name->[$rhs1] if $self->verbose > 1;
 		for $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
 		    ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
 #		    warn "Trying rule $rule_index: P(",$self->sym_name->[$lhs],'->',$self->sym_name->[$rhs1],' ',$self->sym_name->[$rhs2],") = $rule_prob", if $self->verbose > 1;
 		    if (exists $p->[$j]->[$j]->{$rhs2}) {
-			push @rhs1_queue, $lhs unless exists $p->[$i]->[$j]->{$lhs};
+			$rhsq->insert ($lhs, $lhs) unless exists $p->[$i]->[$j]->{$lhs};
 			$p->[$i]->[$j]->{$lhs} += $p->[$i]->[$j]->{$rhs1} * $p->[$j]->[$j]->{$rhs2} * $rule_prob;
 			warn "p($i,$j,",$self->sym_name->[$lhs],") += p($i,$j,",$self->sym_name->[$rhs1],")[=",$p->[$i]->[$j]->{$rhs1},"] * p($j,$j,",$self->sym_name->[$rhs2],")[=",$p->[$j]->[$j]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
-#			warn "rhs1_q=(",map($self->sym_name->[$_],@rhs1_queue),")" if $self->verbose > 1;
 		    }
 		}
 	    }
@@ -199,9 +203,14 @@ sub prefix_Inside {
 	    }
 	}
 
-	for $rhs1 (sort {$a<=>$b} keys %{$q->[$i]}) {
+	my $rhsq = Hash::PriorityQueue->new;
+	for my $rhs1 (keys %{$q->[$i]}) {
+	    $rhsq->insert ($rhs1, $rhs1);
+	}
+	while (defined ($rhs1 = $rhsq->pop)) {
 	    # q(i,lhs) += q(i,rhs1) * \sum_rhs2 P(lhs->rhs1 rhs2)
 	    while (($lhs, $partial_prob) = each %{$self->partial_prob->{$rhs1}}) {
+		$rhsq->insert ($lhs, $lhs) unless exists $q->[$i]->{$lhs};
 		$q->[$i]->{$lhs} += $q->[$i]->{$rhs1} * $partial_prob;
 		warn "q($i,",$self->sym_name->[$lhs],") += q($i,",$self->sym_name->[$rhs1],")[=",$q->[$i]->{$rhs1},"] * sum_rhs2 P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," *)[=", $partial_prob, "]" if $self->verbose;
 	    }
