@@ -75,7 +75,7 @@ sub add_rule {
     die if $rhs1 eq $self->end && $rhs2 ne $self->end;
     die if $prob < 0;
     return if $prob == 0;
-    push @{$self->rule}, [$lhs, $rhs1, $rhs2, $prob];
+    push @{$self->rule}, [$lhs, $rhs1, $rhs2, $prob, @{$self->rule} + 0];
     $self->outgoing_prob->{$lhs} += $prob;
     $self->graph->add_edge ($lhs, $rhs1);
 }
@@ -95,14 +95,32 @@ sub index_rules {
     $self->{'rule_by_rhs2'} = {};
     $self->{'partial_prob'} = {};
     for my $rule (@{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $prob) = @$rule;
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
 	$prob /= $self->outgoing_prob->{$lhs};
 	warn "$lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
 	my ($lhs_id, $rhs1_id, $rhs2_id) = map ($self->sym_id->{$_}, $lhs, $rhs1, $rhs2);
-	push @{$self->rule_by_rhs1->{$rhs1_id}}, [$lhs_id, $rhs2_id, $prob];
-	push @{$self->rule_by_rhs2->{$rhs2_id}}, [$lhs_id, $rhs1_id, $prob];
+	push @{$self->rule_by_rhs1->{$rhs1_id}}, [$lhs_id, $rhs2_id, $prob, $rule_index];
+	push @{$self->rule_by_rhs2->{$rhs2_id}}, [$lhs_id, $rhs1_id, $prob, $rule_index];
 	$self->partial_prob->{$rhs1_id}->{$lhs_id} += $prob;
     }
+}
+
+# empty probs
+sub empty_prob {
+    my ($self) = @_;
+    my %empty = ($self->end_id => 1);
+    my @rhs2_queue = keys %empty;
+    while (@rhs2_queue) {
+	my $rhs2 = shift @rhs2_queue;
+	for my $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
+	    my ($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
+	    if (exists $empty{$rhs1}) {
+		push @rhs2_queue, $lhs unless exists $empty{$lhs};
+		$empty{$lhs} += $empty{$rhs1} * $empty{$rhs2};
+	    }
+	}
+    }
+    return %empty;
 }
 
 # subroutine to tokenize a sequence
@@ -116,13 +134,14 @@ sub tokenize {
 sub prefix_Inside {
     my ($self, $tokseq) = @_;
     my $len = @{$tokseq} + 0;
-    my ($i, $j, $k, $rule, $lhs, $rhs1, $rhs2, $rule_prob, $rhs2_prob, $partial_prob);
+    my ($i, $j, $k, $rule, $lhs, @rhs1_queue, $rhs1, $rhs2, $rule_prob, $rule_index, $rhs2_prob, $partial_prob);
 
     # Create Inside matrix
     # p(i,j,sym) = P(seq[i]..seq[j-1] | sym)
     #            = probability that parse tree rooted at sym will generate subseq i..j-1 (inclusive)
     my $p = [ map ([map ({}, $_..$len)], 0..$len) ];
-    for $i (0..$len) { $p->[$i]->[$i]->{$self->end_id} = 1 }
+    my %empty = $self->empty_prob;
+    for $i (0..$len) { $p->[$i]->[$i] = \%empty }
     for $i (0..$len-1) { $p->[$i]->[$i+1]->{$tokseq->[$i]} = 1 }
 
     #   q(i,sym) = \sum_{j=N+1}^\infty p(i,j,sym)
@@ -131,40 +150,21 @@ sub prefix_Inside {
     $q->[$len]->{$self->end_id} = 1;
 
     # Inside recursion
-    for ($j = $len; $j >= 0; --$j) {
-	for $rhs1 (sort {$a<=>$b} keys %{$q->[$j]}) {
-
-	    # q(j,lhs) += q(j,rhs1) * \sum_rhs2 P(lhs->rhs1 rhs2)
-	    while (($lhs, $partial_prob) = each %{$self->partial_prob->{$rhs1}}) {
-		$q->[$j]->{$lhs} += $q->[$j]->{$rhs1} * $partial_prob;
-		warn "q($j,",$self->sym_name->[$lhs],") += q($j,",$self->sym_name->[$rhs1],")[=",$q->[$j]->{$rhs1},"] * sum_rhs2 P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," *)[=", $partial_prob, "]" if $self->verbose;
-	    }
-
-	    # q(j,lhs) += p(j,j,rhs1) * q(j,rhs2) * P(lhs->rhs1 rhs2)
-	    # ...skip this on the assumption that "lhs->rhs1 rhs2" always yields nonempty Inside sequence for rhs1
-	}
-
-	# k<j: q(k,lhs) += p(k,j,rhs1) * q(j,rhs2) * P(lhs->rhs1 rhs2)
-	for ($k = $j - 1; $k >= 0; --$k) {
-	    while (($rhs2, $rhs2_prob) = each %{$q->[$j]}) {
-		for $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
-		    ($lhs, $rhs1, $rule_prob) = @$rule;
-		    if (exists $p->[$k]->[$j]->{$rhs1}) {
-			$q->[$k]->{$lhs} += $p->[$k]->[$j]->{$rhs1} * $rhs2_prob * $rule_prob;
-			warn "q($k,",$self->sym_name->[$lhs],") += p($k,$j,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$j]->{$rhs1},"] * q($j,",$self->sym_name->[$rhs2],")[=$rhs2_prob] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
-		    }
-		}
-	    }
-	}
-
-	for ($i = $j; $i <= $len; ++$i) {
-
-	    # p(i,j,lhs) += p(i,j,rhs1) * p(j,j,rhs2) * P(lhs->rhs1 rhs2)
-	    for $rhs1 (sort {$a<=>$b} keys %{$p->[$i]->[$j]}) {
+    for ($i = $len; $i >= 0; --$i) {
+	# j>i: p(i,j,lhs) += p(i,j,rhs1) * p(j,j,rhs2) * P(lhs->rhs1 rhs2)
+	for ($j = $i + 1; $j <= $len; ++$j) {
+	    @rhs1_queue = sort {$a<=>$b} keys %{$p->[$i]->[$j]};
+	    while (@rhs1_queue) {
+		$rhs1 = shift @rhs1_queue;
+#		warn "Pushing from i=$i,j=$j,rhs1=",$self->sym_name->[$rhs1] if $self->verbose > 1;
 		for $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
-		    ($lhs, $rhs2, $rule_prob) = @$rule;
+		    ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
+#		    warn "Trying rule $rule_index: P(",$self->sym_name->[$lhs],'->',$self->sym_name->[$rhs1],' ',$self->sym_name->[$rhs2],") = $rule_prob", if $self->verbose > 1;
 		    if (exists $p->[$j]->[$j]->{$rhs2}) {
+			push @rhs1_queue, $lhs unless exists $p->[$i]->[$j]->{$lhs};
 			$p->[$i]->[$j]->{$lhs} += $p->[$i]->[$j]->{$rhs1} * $p->[$j]->[$j]->{$rhs2} * $rule_prob;
+			warn "p($i,$j,",$self->sym_name->[$lhs],") += p($i,$j,",$self->sym_name->[$rhs1],")[=",$p->[$i]->[$j]->{$rhs1},"] * p($j,$j,",$self->sym_name->[$rhs2],")[=",$p->[$j]->[$j]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
+#			warn "rhs1_q=(",map($self->sym_name->[$_],@rhs1_queue),")" if $self->verbose > 1;
 		    }
 		}
 	    }
@@ -173,9 +173,10 @@ sub prefix_Inside {
 	    for ($k = $j + 1; $k <= $len; ++$k) {
 		for $rhs1 (keys %{$p->[$i]->[$j]}) {
 		    for $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
-			($lhs, $rhs2, $rule_prob) = @$rule;
+			($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
 			if (exists $p->[$j]->[$k]->{$rhs2}) {
 			    $p->[$i][$k]->{$lhs} += $p->[$i][$j]->{$rhs1} * $p->[$j][$k]->{$rhs2} * $rule_prob;
+			    warn "p($i,$k,",$self->sym_name->[$lhs],") += p($i,$k,",$self->sym_name->[$rhs1],")[=",$p->[$i]->[$k]->{$rhs1},"] * p($j,$k,",$self->sym_name->[$rhs2],")[=",$p->[$j]->[$k]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
 			}
 		    }
 		}
@@ -188,10 +189,35 @@ sub prefix_Inside {
 	    for ($k = $i - 1; $k >= 0; --$k) {
 		for $rhs2 (keys %{$p->[$i]->[$j]}) {
 		    for $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
-			($lhs, $rhs1, $rule_prob) = @$rule;
+			($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
 			if (exists $p->[$k]->[$i]->{$rhs1}) {
 			    $p->[$k][$j]->{$lhs} += $p->[$k][$i]->{$rhs1} * $p->[$i][$j]->{$rhs2} * $rule_prob;
+			    warn "p($k,$j,",$self->sym_name->[$lhs],") += p($k,$i,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$i]->{$rhs1},"] * p($i,$j,",$self->sym_name->[$rhs2],")[=",$p->[$i]->[$j]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
 			}
+		    }
+		}
+	    }
+	}
+
+	for $rhs1 (sort {$a<=>$b} keys %{$q->[$i]}) {
+	    # q(i,lhs) += q(i,rhs1) * \sum_rhs2 P(lhs->rhs1 rhs2)
+	    while (($lhs, $partial_prob) = each %{$self->partial_prob->{$rhs1}}) {
+		$q->[$i]->{$lhs} += $q->[$i]->{$rhs1} * $partial_prob;
+		warn "q($i,",$self->sym_name->[$lhs],") += q($i,",$self->sym_name->[$rhs1],")[=",$q->[$i]->{$rhs1},"] * sum_rhs2 P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," *)[=", $partial_prob, "]" if $self->verbose;
+	    }
+		
+	    # q(i,lhs) += p(i,i,rhs1) * q(i,rhs2) * P(lhs->rhs1 rhs2)
+	    # ...skip this on the assumption that "lhs->rhs1 rhs2" always yields nonempty Inside sequence for rhs1
+	}
+
+	# k<i: q(k,lhs) += p(k,i,rhs1) * q(i,rhs2) * P(lhs->rhs1 rhs2)
+	for ($k = $i - 1; $k >= 0; --$k) {
+	    while (($rhs2, $rhs2_prob) = each %{$q->[$i]}) {
+		for $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
+		    ($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
+		    if (exists $p->[$k]->[$i]->{$rhs1}) {
+			$q->[$k]->{$lhs} += $p->[$k]->[$i]->{$rhs1} * $rhs2_prob * $rule_prob;
+			warn "q($k,",$self->sym_name->[$lhs],") += p($k,$i,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$i]->{$rhs1},"] * q($i,",$self->sym_name->[$rhs2],")[=$rhs2_prob] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
 		    }
 		}
 	    }
