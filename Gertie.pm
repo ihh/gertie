@@ -179,7 +179,7 @@ sub prefix_Inside {
 		}
 	    }
 
-	    # k>j: p(i,k,lhs) += p(i,j,rhs1) * p(j,k,rhs2) * P(lhs->rhs1 rhs2)
+	    # k>j>i: p(i,k,lhs) += p(i,j,rhs1) * p(j,k,rhs2) * P(lhs->rhs1 rhs2)
 	    for (my $k = $j + 1; $k <= $len; ++$k) {
 		for my $rhs1 (keys %{$p->[$i]->[$j]}) {
 		    for my $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
@@ -192,10 +192,10 @@ sub prefix_Inside {
 		}
 	    }
 
-	    # p(i,j,lhs) += p(i,i,rhs1) * p(i,j,rhs2) * P(lhs->rhs1 rhs2)
+	    # j>i: p(i,j,lhs) += p(i,i,rhs1) * p(i,j,rhs2) * P(lhs->rhs1 rhs2)
 	    # ...skip this on the assumption that "lhs->rhs1 rhs2" always yields nonempty Inside sequence for rhs1
 
-	    # k<i: p(k,j,lhs) += p(k,i,rhs1) * p(i,j,rhs2) * P(lhs->rhs1 rhs2)
+	    # k<i<j: p(k,j,lhs) += p(k,i,rhs1) * p(i,j,rhs2) * P(lhs->rhs1 rhs2)
 	    for (my $k = $i - 1; $k >= 0; --$k) {
 		for my $rhs2 (keys %{$p->[$i]->[$j]}) {
 		    for my $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
