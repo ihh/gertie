@@ -270,8 +270,7 @@ sub traceback_Inside {
     my $q_prob = $q->[0]->{$self->start_id};
     my $p_prob = $p->[0]->[$len]->{$self->start_id};
     my $is_complete = sample ([defined($q_prob) ? $q_prob : 0,
-			       defined($p_prob) ? $p_prob : 0],
-			      [0, 1]);
+			       defined($p_prob) ? $p_prob : 0]);
     if ($is_complete) {
 	return $self->traceback_Inside_p ($p, 0, $len, $self->start_id);
     } else {
