@@ -73,13 +73,16 @@ sub parse_line {
 
 sub add_rule {
     my ($self, $lhs, $rhs1, $rhs2, $prob) = @_;
+    # Supply default values
     $rhs2 = $self->end unless length($rhs2);
     $prob = 1 unless length($prob);
-    die if $lhs eq $self->end;
-    die if $rhs1 eq $self->end && $rhs2 ne $self->end;
-    die if $prob < 0;
-    $self->{'start'} = $lhs unless defined $self->{'start'};
-    return if $prob == 0;
+    # Check the rule is valid
+    die if $lhs eq $self->end;  # No rules starting with 'end'
+    die if $rhs1 eq $self->end && $rhs2 ne $self->end;  # No rules A -> end C
+    die if $prob < 0;  # Rule weights are nonnegative
+    $self->{'start'} = $lhs unless defined $self->{'start'};  # First named nonterminal is start
+    return if $prob == 0;  # Don't bother tracking zero-weight rules
+    # Record the rule
     push @{$self->rule}, [$lhs, $rhs1, $rhs2, $prob, @{$self->rule} + 0];
     $self->outgoing_prob->{$lhs} += $prob;
     $self->graph->add_edge ($lhs, $rhs1);
@@ -93,7 +96,7 @@ sub index_symbols {
     $self->{'sym_id'} = {map (($self->sym_name->[$_] => $_), 0..$#{$self->sym_name})};
     $self->{'start_id'} = $self->sym_id->{$self->start};
     $self->{'end_id'} = $self->sym_id->{$self->end};
-    $self->{'term_name'} = [$self->graph->sink_vertices];
+    $self->{'term_name'} = [$self->graph->sink_vertices];  # We define "terminals" to include 'end'
     $self->{'term_id'} = [map ($self->sym_id->{$_}, @{$self->term_name})];
     $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
 }
@@ -155,85 +158,42 @@ sub prefix_Inside {
     for my $i (0..$len) { $p->[$i]->[$i] = \%empty }
     for my $i (0..$len-1) { $p->[$i]->[$i+1]->{$tokseq->[$i]} = 1 }
 
+    # Inside recursion
+    for (my $j = 1; $j <= $len; ++$j) {
+	for (my $i = $j - 1; $i >= 0; --$i) {
+	    for (my $k = $i; $k <= $j; ++$k) {
+		for my $rhs1 (sort keys %{$p->[$i]->[$k]}) {
+		    my $rhs1_prob = $p->[$i]->[$k]->{$rhs1};
+		    for my $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
+			my ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
+			if (defined (my $rhs2_prob = $p->[$k]->[$j]->{$rhs2})) {
+			    $p->[$i]->[$j]->{$lhs} += $rhs1_prob * $rhs2_prob * $rule_prob;
+			}
+		    }
+		}
+	    }
+	}
+    }
+
     #   q(i,sym) = \sum_{j=N+1}^\infty p(i,j,sym)
     #            = probability that parse tree rooted at sym will generate prefix i..length-1 (inclusive)
     my $q = [ map ({}, 0..$len) ];
     for my $term_id (@{$self->term_id}) { $q->[$len]->{$term_id} = 1 }
 
-    # Inside recursion
-    for (my $i = $len; $i >= 0; --$i) {
-	# j>i: p(i,j,lhs) += p(i,j,rhs1) * p(j,j,rhs2) * P(lhs->rhs1 rhs2)
-	for (my $j = $i + 1; $j <= $len; ++$j) {
-	    my $rhsq = Hash::PriorityQueue->new;
-	    for my $rhs1 (keys %{$p->[$i]->[$j]}) {
-		$rhsq->insert ($rhs1, $rhs1);
-	    }
-	    while (defined (my $rhs1 = $rhsq->pop)) {
-		for my $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
-		    my ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
-		    if (exists $p->[$j]->[$j]->{$rhs2}) {
-			$rhsq->insert ($lhs, $lhs) unless exists $p->[$i]->[$j]->{$lhs};
-			$p->[$i]->[$j]->{$lhs} += $p->[$i]->[$j]->{$rhs1} * $p->[$j]->[$j]->{$rhs2} * $rule_prob;
-			warn "Inside fill: p($i,$j,",$self->sym_name->[$lhs],") += p($i,$j,",$self->sym_name->[$rhs1],")[=",$p->[$i]->[$j]->{$rhs1},"] * p($j,$j,",$self->sym_name->[$rhs2],")[=",$p->[$j]->[$j]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
+    # prefix Inside recursion
+    my $symbols = @{$self->sym_name} + 0;
+    for (my $i = $len - 1; $i >= 0; --$i) {
+	for my $rhs1 (0..$symbols-1) {
+	    for my $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
+		my ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
+		for (my $k = $i; $k <= $len; ++$k) {
+		    if (defined (my $rhs1_prob = $p->[$i]->[$k]->{$rhs1})
+			&& defined (my $rhs2_prob = $q->[$k]->{$rhs2})) {
+			$q->[$i]->{$lhs} += $rule_prob * $rhs1_prob * $rhs2_prob;
 		    }
 		}
-	    }
-
-	    # k>j>i: p(i,k,lhs) += p(i,j,rhs1) * p(j,k,rhs2) * P(lhs->rhs1 rhs2)
-	    for (my $k = $j + 1; $k <= $len; ++$k) {
-		for my $rhs1 (keys %{$p->[$i]->[$j]}) {
-		    for my $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
-			my ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
-			if (exists $p->[$j]->[$k]->{$rhs2}) {
-			    $p->[$i][$k]->{$lhs} += $p->[$i][$j]->{$rhs1} * $p->[$j][$k]->{$rhs2} * $rule_prob;
-			    warn "Inside fill: p($i,$k,",$self->sym_name->[$lhs],") += p($i,$k,",$self->sym_name->[$rhs1],")[=",$p->[$i]->[$k]->{$rhs1},"] * p($j,$k,",$self->sym_name->[$rhs2],")[=",$p->[$j]->[$k]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
-			}
-		    }
-		}
-	    }
-
-	    # j>i: p(i,j,lhs) += p(i,i,rhs1) * p(i,j,rhs2) * P(lhs->rhs1 rhs2)
-	    # ...skip this on the assumption that "lhs->rhs1 rhs2" always yields nonempty Inside sequence for rhs1
-
-	    # k<i<j: p(k,j,lhs) += p(k,i,rhs1) * p(i,j,rhs2) * P(lhs->rhs1 rhs2)
-	    for (my $k = $i - 1; $k >= 0; --$k) {
-		for my $rhs2 (keys %{$p->[$i]->[$j]}) {
-		    for my $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
-			my ($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
-			if (exists $p->[$k]->[$i]->{$rhs1}) {
-			    $p->[$k][$j]->{$lhs} += $p->[$k][$i]->{$rhs1} * $p->[$i][$j]->{$rhs2} * $rule_prob;
-			    warn "Inside fill: p($k,$j,",$self->sym_name->[$lhs],") += p($k,$i,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$i]->{$rhs1},"] * p($i,$j,",$self->sym_name->[$rhs2],")[=",$p->[$i]->[$j]->{$rhs2},"] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
-			}
-		    }
-		}
-	    }
-	}
-
-	my $rhsq = Hash::PriorityQueue->new;
-	for my $rhs1 (keys %{$q->[$i]}) {
-	    $rhsq->insert ($rhs1, $rhs1);
-	}
-	while (defined (my $rhs1 = $rhsq->pop)) {
-	    # q(i,lhs) += q(i,rhs1) * \sum_rhs2 P(lhs->rhs1 rhs2)
-	    while (my ($lhs, $partial_prob) = each %{$self->partial_prob->{$rhs1}}) {
-		$rhsq->insert ($lhs, $lhs) unless exists $q->[$i]->{$lhs};
-		$q->[$i]->{$lhs} += $q->[$i]->{$rhs1} * $partial_prob;
-		warn "Inside fill: q($i,",$self->sym_name->[$lhs],") += q($i,",$self->sym_name->[$rhs1],")[=",$q->[$i]->{$rhs1},"] * sum_\$X P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," \$X)[=", $partial_prob, "]" if $self->verbose;
-	    }
-		
-	    # q(i,lhs) += p(i,i,rhs1) * q(i,rhs2) * P(lhs->rhs1 rhs2)
-	    # ...skip this on the assumption that "lhs->rhs1 rhs2" always yields nonempty Inside sequence for rhs1
-	}
-
-	# k<i: q(k,lhs) += p(k,i,rhs1) * q(i,rhs2) * P(lhs->rhs1 rhs2)
-	for (my $k = $i - 1; $k >= 0; --$k) {
-	    while (my ($rhs2, $rhs2_prob) = each %{$q->[$i]}) {
-		for my $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
-		    my ($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
-		    if (exists $p->[$k]->[$i]->{$rhs1}) {
-			$q->[$k]->{$lhs} += $p->[$k]->[$i]->{$rhs1} * $rhs2_prob * $rule_prob;
-			warn "Inside fill: q($k,",$self->sym_name->[$lhs],") += p($k,$i,",$self->sym_name->[$rhs1],")[=",$p->[$k]->[$i]->{$rhs1},"] * q($i,",$self->sym_name->[$rhs2],")[=$rhs2_prob] * P(",$self->sym_name->[$lhs],"->",$self->sym_name->[$rhs1]," ",$self->sym_name->[$rhs2],")[=$rule_prob]" if $self->verbose;
-		    }
+		if (defined $q->[$i]->{$rhs1}) {
+		    $q->[$i]->{$lhs} += $rule_prob * $q->[$i]->{$rhs1};
 		}
 	    }
 	}
