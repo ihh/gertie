@@ -159,6 +159,7 @@ sub prefix_Inside {
     for my $i (0..$len-1) { $p->[$i]->[$i+1]->{$tokseq->[$i]} = 1 }
 
     # Inside recursion
+    # p(i,j,sym) = \sum_{k=i}^j \sum_{lhs->rhs1 rhs1} P(lhs->rhs1 rhs2) p(i,k,rhs1) * p(k,j,rhs2)
     for (my $j = 1; $j <= $len; ++$j) {
 	for (my $i = $j - 1; $i >= 0; --$i) {
 	    for (my $k = $i; $k <= $j; ++$k) {
@@ -175,12 +176,14 @@ sub prefix_Inside {
 	}
     }
 
-    #   q(i,sym) = \sum_{j=N+1}^\infty p(i,j,sym)
-    #            = probability that parse tree rooted at sym will generate prefix i..length-1 (inclusive)
+    # Create prefix Inside matrix
+    # q(i,sym) = \sum_{j=N+1}^\infty p(i,j,sym)
+    #          = probability that parse tree rooted at sym will generate prefix i..length-1 (inclusive)
     my $q = [ map ({}, 0..$len) ];
     for my $term_id (@{$self->term_id}) { $q->[$len]->{$term_id} = 1 }
 
     # prefix Inside recursion
+    # q(i,sym) = \sum_{lhs->rhs1 rhs1} P(lhs->rhs1 rhs2) (q(i,rhs1) + \sum_{k=i}^{length} p(i,k,rhs1) * q(k,rhs2))
     my $symbols = @{$self->sym_name} + 0;
     for (my $i = $len - 1; $i >= 0; --$i) {
 	for my $rhs1 (0..$symbols-1) {
