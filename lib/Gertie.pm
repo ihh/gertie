@@ -113,8 +113,12 @@ sub index_symbols {
     $self->{'sym_id'} = {map (($self->sym_name->[$_] => $_), 0..$#{$self->sym_name})};
     $self->{'start_id'} = $self->sym_id->{$self->start};
     $self->{'end_id'} = $self->sym_id->{$self->end};
-    $self->{'term_name'} = [$self->graph->sink_vertices];  # We define "terminals" to include 'end'
-    $self->{'term_id'} = [map ($self->sym_id->{$_}, @{$self->term_name})];
+
+    # We define "terminals" to include 'end'
+    my @term = $self->graph->sink_vertices;
+    push @term, $self->end unless grep ($_ eq $self->end, @term);
+    $self->{'term_name'} = \@term;
+    $self->{'term_id'} = [map ($self->sym_id->{$_}, @term)];
     $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
 
     warn "Symbols: (@{$self->sym_name})" if $self->verbose;
@@ -203,9 +207,10 @@ sub prefix_Inside {
 
     # Create prefix Inside matrix
     # q(i,sym) = \sum_{j=N+1}^\infty p(i,j,sym)
-    #          = probability that parse tree rooted at sym will generate prefix i..length-1 (inclusive)
+    #          = probability that parse tree rooted at sym will generate prefix i..length-1 (inclusive) plus at least one extra terminal
     my $q = [ map ({}, 0..$len) ];
     for my $term_id (@{$self->term_id}) { $q->[$len]->{$term_id} = 1 }
+    delete $q->[$len]->{$self->end_id};  # a parse tree rooted at 'end' cannot generate any more terminals, so we don't consider 'end' a terminal for this purpose
 
     # prefix Inside recursion
     # q(i,sym) = \sum_{lhs->rhs1 rhs1} P(lhs->rhs1 rhs2) (q(i,rhs1) + \sum_{k=i}^{length} p(i,k,rhs1) * q(k,rhs2))
@@ -277,12 +282,12 @@ sub traceback_Inside_p {
     my ($self, $p, $i, $j, $lhs) = @_;
     return [$self->sym_name->[$lhs]] if $self->is_term->{$lhs};
     my (@rhs_k, @prob);
-    my $rule_by_lhs_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
-    confess "Traceback error" unless defined $rule_by_lhs_rhs1;
+    my $rule_by_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
+    confess "Traceback error: i=$i, j=$j, lhs=", $self->sym_name->[$lhs] unless defined $rule_by_rhs1;
     for (my $k = $i; $k <= $j; ++$k) {
-	for my $rhs1 (keys %$rule_by_lhs_rhs1) {
+	for my $rhs1 (keys %$rule_by_rhs1) {
 	    if (defined $p->[$i]->[$k]->{$rhs1}) {
-		for my $rule (@{$rule_by_lhs_rhs1->{$rhs1}}) {
+		for my $rule (@{$rule_by_rhs1->{$rhs1}}) {
 		    my ($rhs2, $rule_prob, $rule_index) = @$rule;
 		    if (defined $p->[$k]->[$j]->{$rhs2}) {
 			push @rhs_k, [$rhs1, $rhs2, $k];
@@ -292,7 +297,7 @@ sub traceback_Inside_p {
 	    }
 	}
     }
-    confess "Traceback error" unless @prob;
+    confess "Traceback error: i=$i, j=$j, lhs=", $self->sym_name->[$lhs] unless @prob;
     my ($rhs1, $rhs2, $k) = @{sample (\@prob, \@rhs_k)};
     return [$self->sym_name->[$lhs],
 	    $self->traceback_Inside_p ($p, $i, $k, $rhs1),
@@ -304,9 +309,9 @@ sub traceback_Inside_q {
     my $len = $#$p;
     return [$self->sym_name->[$lhs]] if $self->is_term->{$lhs} && $i == $len;
     my (@rhs_k, @prob);
-    my $rule_by_lhs_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
-    confess "Traceback error" unless defined $rule_by_lhs_rhs1;
-    while (my ($rhs1, $rule_list) = each %$rule_by_lhs_rhs1) {
+    my $rule_by_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
+    confess "Traceback error: i=$i, lhs=", $self->sym_name->[$lhs] unless defined $rule_by_rhs1;
+    while (my ($rhs1, $rule_list) = each %$rule_by_rhs1) {
 	for (my $k = $i; $k <= $len; ++$k) {
 	    if (defined $p->[$i]->[$k]->{$rhs1}) {
 		for my $rule (@$rule_list) {
@@ -326,7 +331,7 @@ sub traceback_Inside_q {
 	    }
 	}
     }
-    confess "Traceback error" unless @prob;
+    confess "Traceback error: i=$i, lhs=", $self->sym_name->[$lhs] unless @prob;
     my ($rhs1, $rhs2, $k) = @{sample (\@prob, \@rhs_k)};
     return [$self->sym_name->[$lhs],
 	    $k > $len
@@ -340,10 +345,10 @@ sub simulate {
     my ($self, $lhs) = @_;
     $lhs = $self->start_id unless defined $lhs;
     return [$self->sym_name->[$lhs]] if $self->is_term->{$lhs};
-    my $rule_by_lhs_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
-    confess "Simulation error: lhs=", $self->sym_name->[$lhs] unless defined $rule_by_lhs_rhs1;
+    my $rule_by_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
+    confess "Simulation error: lhs=", $self->sym_name->[$lhs] unless defined $rule_by_rhs1;
     my (@rhs, @prob);
-    while (my ($rhs1, $rule_list) = each %$rule_by_lhs_rhs1) {
+    while (my ($rhs1, $rule_list) = each %$rule_by_rhs1) {
 	for my $rule (@$rule_list) {
 	    my ($rhs2, $rule_prob, $rule_index) = @$rule;
 	    push @rhs, [$rhs1, $rhs2];
