@@ -40,39 +40,38 @@ sub new_gertie {
 sub new_from_file {
     my ($class, $filename, @args) = @_;
     my $self = $class->new_gertie (@args);
-    $self->parse_file ($filename);
+    $self->parse_files ($filename);
     return $self;
 }
 
 sub new_from_string {
     my ($class, $text, @args) = @_;
     my $self = $class->new_gertie (@args);
-    my @text = split /;/, $text;
-    $self->parse_lines (@text);
+    $self->parse ($text);
     return $self;
 }
 
-# Read grammar file
-sub parse_file {
-    my ($self, $filename) = @_;
+# Read grammar file(s)
+sub parse_files {
+    my ($self, @filename) = @_;
     local *FILE;
     local $_;
-    open FILE, "<$filename";
-    while (<FILE>) {
-	$self->parse_line ($_);
+    for my $filename (@filename) {
+	open FILE, "<$filename";
+	my @text = <FILE>;
+	close FILE;
+	$self->parse (@text);
     }
-    close FILE;
-    $self->index_symbols();
-    $self->index_rules();
+    $self->index();
 }
 
-sub parse_lines {
-    my ($self, @lines) = @_;
+sub parse {
+    my ($self, @text) = @_;
+    my @lines = split (/;/, join ("", @text));
     for my $line (@lines) {
 	$self->parse_line ($line);
     }
-    $self->index_symbols();
-    $self->index_rules();
+    $self->index();
 }
 
 sub parse_line {
@@ -129,6 +128,13 @@ sub add_rule {
     $self->rule_prob_by_name->{$lhs}->{$rhs1}->{$rhs2} = $prob;
     $self->outgoing_prob_by_name->{$lhs} += $prob;
     grep (++$self->symbol->{$_}, $lhs, $rhs1, $rhs2);
+}
+
+# Index: convert symbols & rules to integers
+sub index {
+    my ($self) = @_;
+    $self->index_symbols;
+    $self->index_rules;
 }
 
 # Treating each rule "A->B C" as an edge "A->B", compute toposort
