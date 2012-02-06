@@ -2,7 +2,7 @@
 
 use Cwd qw(abs_path);
 use FindBin;
-use lib abs_path("$FindBin::Bin/lib");
+use lib abs_path("$FindBin::Bin/../lib");
 
 use Gertie;
 
