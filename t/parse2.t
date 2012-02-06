@@ -43,7 +43,7 @@ test ($g->print_Inside ($p, $q), $inside, "DP matrix");
 
 srand(1);
 my (%sim, %tb);
-my $samples = 10_000;
+my $samples = 1_000;
 for (my $k = 0; $k < $samples; ++$k) {
     my $simparse = $g->simulate;
     ++$sim{$g->print_parse_tree($simparse)};
@@ -53,7 +53,7 @@ for (my $k = 0; $k < $samples; ++$k) {
 
 my $parse1 = "(A->D)";
 my $parse2 = "(A->D,D)";
-my $min = $samples * .48;  # leave some margin for error
+my $min = $samples * .48;  # leave some margin for error... could calculate failure probability with binomial distribution, if being very careful
 
 sub balance_test {
     my ($type, %hash) = @_;
