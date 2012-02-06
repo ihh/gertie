@@ -19,21 +19,21 @@ use Graph::Directed;
 use AutoHash;
 
 @ISA = qw (AutoHash);
-@EXPORT = qw (new_from_file new_from_string simulate tokenize prefix_Inside traceback_Inside print_Inside print_parse_tree AUTOLOAD);
+@EXPORT = qw (new_from_file new_from_string to_string simulate tokenize prefix_Inside traceback_Inside print_Inside print_parse_tree AUTOLOAD);
 @EXPORT_OK = @EXPORT;
 
 # constructor
 sub new_gertie {
     my ($class, @args) = @_;
-    my $self = AutoHash->new ( 'graph' => Graph::Directed->new,
-			       'end' => "end",
+    my $self = AutoHash->new ( 'end' => "end",
 			       'rule' => [],
+			       'symbol' => {},
 			       'rule_prob_by_name' => {},
 			       'outgoing_prob_by_name' => {},
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
-    $self->graph->add_vertex ($self->end);
+    $self->symbol->{$self->end} = 1;
     return $self;
 }
 
@@ -47,10 +47,7 @@ sub new_from_file {
 sub new_from_string {
     my ($class, $text, @args) = @_;
     my $self = $class->new_gertie (@args);
-    my @text;
-    while ($text =~ /(.+?;)/g) {
-	push @text, $1;
-    }
+    my @text = split /;/, $text;
     $self->parse_lines (@text);
     return $self;
 }
@@ -90,6 +87,7 @@ sub parse_line {
     } elsif (/^\s*([A-Za-z_]\w*)\s*\->((\s*[A-Za-z_]\w*\b)*)\s*([\d\.]*)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
 	my ($lhs, $rhs, $rhs1, $prob) = ($1, $2, $3, $4);
 	# Convert "A->B C D E" into "A -> B.C.D E;  B.C.D -> B.C D;  B.C -> B C"
+	$rhs =~ s/^\s*(.*?)\s*/$1/;
 	my @rhs = split /\s+/, $rhs;
 	confess "Parse error" unless @rhs >= 2;
 	while (@rhs >= 2) {
@@ -97,7 +95,12 @@ sub parse_line {
 	    my $rhs1 = join (".", @rhs);
 	    $self->add_rule ($lhs, $rhs1, $rhs2, $prob);
 	    $lhs = $rhs1;
+	    $prob = 1;
 	}
+    } elsif (/^\s*([A-Za-z_]\w*)\s*\->((\s*[A-Za-z_]\w*\b)*\s*([\d\.]*)(\s*\|(\s*[A-Za-z_]\w*\b)*\s*([\d\.]*))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
+	my ($lhs, $all_rhs) = ($1, $2);
+	my @rhs = split /\|/, $all_rhs;
+	for my $rhs (@rhs) { $self->parse_line ("$lhs -> $rhs") }
     } else {
 	warn "Unrecognized line: ", $_;
     }
@@ -110,7 +113,6 @@ sub add_rule {
     $prob = 1 unless length($prob);
     # Check the rule is valid
     confess if $lhs eq $self->end;  # No rules starting with 'end'
-    confess if $rhs1 eq $self->end && $rhs2 ne $self->end;  # No rules A -> end C
     confess if $prob < 0;  # Rule weights are nonnegative
     $self->{'start'} = $lhs unless defined $self->{'start'};  # First named nonterminal is start
     return if $prob == 0;  # Don't bother tracking zero-weight rules
@@ -126,27 +128,72 @@ sub add_rule {
     push @{$self->rule}, [$lhs, $rhs1, $rhs2, $prob, @{$self->rule} + 0];
     $self->rule_prob_by_name->{$lhs}->{$rhs1}->{$rhs2} = $prob;
     $self->outgoing_prob_by_name->{$lhs} += $prob;
-    $self->graph->add_edge ($lhs, $rhs1);
+    grep (++$self->symbol->{$_}, $lhs, $rhs1, $rhs2);
 }
 
 # Treating each rule "A->B C" as an edge "A->B", compute toposort
 sub index_symbols {
     my ($self) = @_;
-    croak "Transition graph is cyclic!" if $self->graph->is_cyclic;
-    $self->{'sym_name'} = [reverse $self->graph->topological_sort];
+
+    # Check that we have some rules & symbols to index
+    confess "No rules to index" unless @{$self->rule};
+
+    # quick-index rules by rhs symbols
+    my %by_rhs;
+    for my $rule (@{$self->rule}) {
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
+	push @{$by_rhs{$rhs1}}, $rule;
+	push @{$by_rhs{$rhs2}}, $rule unless $rhs1 eq $rhs2;
+    }
+
+    # find nonterms that have a null path to 'end'
+    my @null_q = ($self->end);
+    my %can_be_null = ($self->end => 1);
+    while (@null_q) {
+	my $sym = shift @null_q;
+	for my $rule (@{$by_rhs{$sym}}) {
+	    my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
+	    if ($can_be_null{$rhs1} && $can_be_null{$rhs2}) {
+		push @null_q, $lhs unless $can_be_null{$lhs};
+		$can_be_null{$lhs} = 1;
+	    }
+	}
+    }
+    warn "Nonterminals that can be null: ", join(" ",keys%can_be_null) if $self->verbose > 1;
+
+    # build transition graph
+    my $graph = Graph::Directed->new;
+    for my $sym (keys %{$self->symbol}) {
+	$graph->add_vertex ($sym);
+    }
+    for my $rule (@{$self->rule}) {
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
+	$graph->add_edge ($lhs, $rhs1) if $can_be_null{$rhs2};
+	$graph->add_edge ($lhs, $rhs2) if $can_be_null{$rhs1};
+    }
+
+    # do toposort
+    if ($graph->is_cyclic) {
+	my @cycle = $graph->find_a_cycle;
+	confess "Transition graph is cyclic! e.g. ", join ("->", @cycle, $cycle[0]);
+    }
+    $self->{'sym_name'} = [reverse $graph->topological_sort];
     $self->{'sym_id'} = {map (($self->sym_name->[$_] => $_), 0..$#{$self->sym_name})};
     $self->{'start_id'} = $self->sym_id->{$self->start};
     $self->{'end_id'} = $self->sym_id->{$self->end};
 
     # We define "terminals" to include 'end'
-    my @term = $self->graph->sink_vertices;
-    push @term, $self->end unless grep ($_ eq $self->end, @term);
+    my @term = grep (!exists($self->rule_prob_by_name->{$_}), keys %{$self->symbol});
     $self->{'term_name'} = \@term;
     $self->{'term_id'} = [map ($self->sym_id->{$_}, @term)];
     $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
 
     warn "Symbols: (@{$self->sym_name})" if $self->verbose;
     warn "Terminals: (@{$self->term_name})" if $self->verbose;
+
+    # delete indices we have no further use for
+    delete $self->{'symbols'};  # use $self->sym_name instead
+    delete $self->{'rule_prob_by_name'};
 }
 
 # Normalize & index
@@ -154,7 +201,6 @@ sub index_rules {
     my ($self) = @_;
     $self->{'rule_by_lhs_rhs1'} = {};
     $self->{'rule_by_rhs2'} = {};
-    $self->{'partial_prob'} = {};
     for my $rule (@{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
 	$prob /= $self->outgoing_prob_by_name->{$lhs};
@@ -162,8 +208,10 @@ sub index_rules {
 	my ($lhs_id, $rhs1_id, $rhs2_id) = map ($self->sym_id->{$_}, $lhs, $rhs1, $rhs2);
 	push @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}}, [$rhs2_id, $prob, $rule_index];
 	push @{$self->rule_by_rhs2->{$rhs2_id}}, [$lhs_id, $rhs1_id, $prob, $rule_index];
-	$self->partial_prob->{$rhs1_id}->{$lhs_id} += $prob;
     }
+
+    # delete indices we have no further use for
+    delete $self->{'outgoing_prob_by_name'};
 }
 
 # empty probs
@@ -182,6 +230,34 @@ sub empty_prob {
 	}
     }
     return %empty;
+}
+
+# subroutine to print grammar
+sub to_string {
+    my ($self) = @_;
+    my @text;
+    for my $lhs (sort @{$self->sym_name}) {
+	next if $lhs =~ /\./;  # don't print rules added by Chomsky-fication
+	my $lhs_id = $self->sym_id->{$lhs};
+	my @rhs1 = map ($self->sym_name->[$_], keys %{$self->rule_by_lhs_rhs1->{$lhs_id}});
+	for my $rhs1 (sort @rhs1) {
+	    my $rhs1_id = $self->sym_id->{$rhs1};
+	    $rhs1 =~ s/\./ /g;  # de-Chomskyfy
+	    my @rule = sort {$self->sym_name->[$a->[0]] cmp $self->sym_name->[$b->[0]]} @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}};
+	    for my $rule (@rule) {
+		my ($rhs2_id, $rule_prob, $rule_index) = @$rule;
+		my $rhs2 = $self->sym_name->[$rhs2_id];
+		my $rhs = " $rhs1 $rhs2";
+		$rhs =~ s/ @{[$self->end]}//g;
+		$rhs =~ s/\s+/ /;
+		$rhs =~ s/^\s*//;
+		$rhs = $self->end unless length $rhs;
+		$rule_prob = ($rule_prob == 1 ? "" : " $rule_prob");
+		push @text, "$lhs -> $rhs$rule_prob;\n";
+	    }
+	}
+    }
+    return join ("", @text);
 }
 
 # subroutine to tokenize a sequence
