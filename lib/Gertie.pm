@@ -19,7 +19,7 @@ use Graph::Directed;
 use AutoHash;
 
 @ISA = qw (AutoHash);
-@EXPORT = qw (new_from_file simulate tokenize prefix_Inside traceback_Inside print_Inside print_parse_tree AUTOLOAD);
+@EXPORT = qw (new_from_file new_from_string simulate tokenize prefix_Inside traceback_Inside print_Inside print_parse_tree AUTOLOAD);
 @EXPORT_OK = @EXPORT;
 
 # constructor
@@ -43,6 +43,17 @@ sub new_from_file {
     return $self;
 }
 
+sub new_from_string {
+    my ($class, $text, @args) = @_;
+    my $self = $class->new_gertie (@args);
+    my @text;
+    while ($text =~ /(.+?;)/g) {
+	push @text, $1;
+    }
+    $self->parse_lines (@text);
+    return $self;
+}
+
 # Read grammar file
 sub parse_file {
     my ($self, $filename) = @_;
@@ -54,8 +65,15 @@ sub parse_file {
     }
     close FILE;
     $self->index_symbols();
-    warn "Symbols: (@{$self->sym_name})" if $self->verbose;
-    warn "Terminals: (@{$self->term_name})" if $self->verbose;
+    $self->index_rules();
+}
+
+sub parse_lines {
+    my ($self, @lines) = @_;
+    for my $line (@lines) {
+	$self->parse_line ($line);
+    }
+    $self->index_symbols();
     $self->index_rules();
 }
 
@@ -98,13 +116,15 @@ sub index_symbols {
     $self->{'term_name'} = [$self->graph->sink_vertices];  # We define "terminals" to include 'end'
     $self->{'term_id'} = [map ($self->sym_id->{$_}, @{$self->term_name})];
     $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
+
+    warn "Symbols: (@{$self->sym_name})" if $self->verbose;
+    warn "Terminals: (@{$self->term_name})" if $self->verbose;
 }
 
 # Normalize & index
 sub index_rules {
     my ($self) = @_;
     $self->{'rule_by_lhs_rhs1'} = {};
-    $self->{'rule_by_rhs1'} = {};
     $self->{'rule_by_rhs2'} = {};
     $self->{'partial_prob'} = {};
     for my $rule (@{$self->rule}) {
@@ -113,7 +133,6 @@ sub index_rules {
 	warn "Indexed rule: $lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
 	my ($lhs_id, $rhs1_id, $rhs2_id) = map ($self->sym_id->{$_}, $lhs, $rhs1, $rhs2);
 	push @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}}, [$rhs2_id, $prob, $rule_index];
-	push @{$self->rule_by_rhs1->{$rhs1_id}}, [$lhs_id, $rhs2_id, $prob, $rule_index];
 	push @{$self->rule_by_rhs2->{$rhs2_id}}, [$lhs_id, $rhs1_id, $prob, $rule_index];
 	$self->partial_prob->{$rhs1_id}->{$lhs_id} += $prob;
     }
@@ -148,6 +167,7 @@ sub tokenize {
 sub prefix_Inside {
     my ($self, $tokseq) = @_;
     my $len = @{$tokseq} + 0;
+    my $symbols = @{$self->sym_name} + 0;
 
     # Create Inside matrix
     # p(i,j,sym) = P(seq[i]..seq[j-1] | sym)
@@ -161,13 +181,19 @@ sub prefix_Inside {
     # p(i,j,sym) = \sum_{k=i}^j \sum_{lhs->rhs1 rhs1} P(lhs->rhs1 rhs2) p(i,k,rhs1) * p(k,j,rhs2)
     for (my $j = 1; $j <= $len; ++$j) {
 	for (my $i = $j - 1; $i >= 0; --$i) {
-	    for (my $k = $i; $k <= $j; ++$k) {
-		for my $rhs1 (sort keys %{$p->[$i]->[$k]}) {
-		    my $rhs1_prob = $p->[$i]->[$k]->{$rhs1};
-		    for my $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
-			my ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
-			if (defined (my $rhs2_prob = $p->[$k]->[$j]->{$rhs2})) {
-			    $p->[$i]->[$j]->{$lhs} += $rhs1_prob * $rhs2_prob * $rule_prob;
+	    for (my $lhs = 0; $lhs < $symbols; ++$lhs) {
+		my $rule_by_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
+		for (my $k = $i; $k <= $j; ++$k) {
+		    for my $rhs1 (sort keys %{$p->[$i]->[$k]}) {
+			if (defined $rule_by_rhs1->{$rhs1}) {
+			    my $rhs1_prob = $p->[$i]->[$k]->{$rhs1};
+			    for my $rule (@{$rule_by_rhs1->{$rhs1}}) {
+				my ($rhs2, $rule_prob, $rule_index) = @$rule;
+				if (defined (my $rhs2_prob = $p->[$k]->[$j]->{$rhs2})) {
+				    $p->[$i]->[$j]->{$lhs} += $rhs1_prob * $rhs2_prob * $rule_prob;
+				    warn "p($i,$j,",$self->sym_name->[$lhs],") += p($i,$k,",$self->sym_name->[$rhs1],")(=$rhs1_prob) * p($k,$j,",$self->sym_name->[$rhs2],")(=$rhs2_prob) * P(rule)(=$rule_prob)" if $self->verbose > 1;
+				}
+			    }
 			}
 		    }
 		}
@@ -183,19 +209,24 @@ sub prefix_Inside {
 
     # prefix Inside recursion
     # q(i,sym) = \sum_{lhs->rhs1 rhs1} P(lhs->rhs1 rhs2) (q(i,rhs1) + \sum_{k=i}^{length} p(i,k,rhs1) * q(k,rhs2))
-    my $symbols = @{$self->sym_name} + 0;
     for (my $i = $len - 1; $i >= 0; --$i) {
-	for my $rhs1 (0..$symbols-1) {
-	    for my $rule (@{$self->rule_by_rhs1->{$rhs1}}) {
-		my ($lhs, $rhs2, $rule_prob, $rule_index) = @$rule;
-		for (my $k = $i; $k <= $len; ++$k) {
-		    if (defined (my $rhs1_prob = $p->[$i]->[$k]->{$rhs1})
-			&& defined (my $rhs2_prob = $q->[$k]->{$rhs2})) {
-			$q->[$i]->{$lhs} += $rule_prob * $rhs1_prob * $rhs2_prob;
+	for (my $lhs = 0; $lhs < $symbols; ++$lhs) {
+	    my $rule_by_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
+	    while (my ($rhs1, $rule_list) = each %$rule_by_rhs1) {
+		for my $rule (@$rule_list) {
+		    my ($rhs2, $rule_prob, $rule_index) = @$rule;
+		    for (my $k = $i; $k <= $len; ++$k) {
+			if (defined (my $rhs1_prob = $p->[$i]->[$k]->{$rhs1})
+			    && defined (my $rhs2_prob = $q->[$k]->{$rhs2})) {
+			    $q->[$i]->{$lhs} += $rule_prob * $rhs1_prob * $rhs2_prob;
+			    warn "q($i,",$self->sym_name->[$lhs],") += p($i,$k,",$self->sym_name->[$rhs1],")(=$rhs1_prob) * q($k,",$self->sym_name->[$rhs2],")(=$rhs2_prob) * P(rule)(=$rule_prob)" if $self->verbose > 1;
+			}
 		    }
-		}
-		if (defined $q->[$i]->{$rhs1}) {
-		    $q->[$i]->{$lhs} += $rule_prob * $q->[$i]->{$rhs1};
+		    if (defined $q->[$i]->{$rhs1}) {
+			my $rhs1_prob = $q->[$i]->{$rhs1};
+			$q->[$i]->{$lhs} += $rule_prob * $rhs1_prob;
+			warn "q($i,",$self->sym_name->[$lhs],") += q($i,",$self->sym_name->[$rhs1],")(=$rhs1_prob) * P(rule)(=$rule_prob)" if $self->verbose > 1;
+		    }
 		}
 	    }
 	}
