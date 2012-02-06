@@ -41,6 +41,7 @@ sub new_from_file {
     my ($class, $filename, @args) = @_;
     my $self = $class->new_gertie (@args);
     $self->parse_files ($filename);
+    $self->index();
     return $self;
 }
 
@@ -48,6 +49,7 @@ sub new_from_string {
     my ($class, $text, @args) = @_;
     my $self = $class->new_gertie (@args);
     $self->parse ($text);
+    $self->index();
     return $self;
 }
 
@@ -57,13 +59,11 @@ sub parse_files {
     local *FILE;
     local $_;
     for my $filename (@filename) {
-	warn $filename;
-	open FILE, "<$filename";
+	open FILE, "<$filename" or confess "Can't open '$filename': $!";
 	my @text = <FILE>;
 	close FILE;
 	$self->parse (@text);
     }
-    $self->index();
 }
 
 sub parse {
@@ -72,7 +72,6 @@ sub parse {
     for my $line (@lines) {
 	$self->parse_line ($line);
     }
-    $self->index();
 }
 
 sub parse_line {
@@ -259,7 +258,7 @@ sub to_string {
 		$rhs =~ s/\s+/ /;
 		$rhs =~ s/^\s*//;
 		$rhs = $self->end unless length $rhs;
-		$rule_prob = ($rule_prob == 1 ? "" : " $rule_prob");
+		$rule_prob = ($rule_prob == 1 ? "" : "  $rule_prob");
 		push @text, "$lhs -> $rhs$rule_prob;\n";
 	    }
 	}

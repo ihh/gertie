@@ -23,9 +23,9 @@ sub dump_log {
 my $g = Gertie->new_from_string ('A->C 2|D E F G 5|B 1');
 my $gs = $g->to_string;
 my $gt = <<END;
-A -> B 0.125;
-A -> C 0.25;
-A -> D E F G 0.625;
+A -> B  0.125;
+A -> C  0.25;
+A -> D E F G  0.625;
 END
 test ($gs, $gt, "Canonical form of grammar");
 
