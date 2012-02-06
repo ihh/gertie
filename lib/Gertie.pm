@@ -14,7 +14,6 @@ use Symbol qw(gensym);
 
 # specific imports
 use Graph::Directed;
-use Hash::PriorityQueue;
 
 # imports from this repository
 use AutoHash;
