@@ -23,7 +23,7 @@ sub dump_log {
 my $g = Gertie->new_from_string ('A->B C;B->D;C->end;');
 
 my $simparse = $g->simulate;
-test ($g->print_parse_tree($simparse), "(A->(B->D,end),(C->end,end))", "Simulated parse");
+test ($g->print_parse_tree($simparse), "(A->(B->D),(C->end))", "Simulated parse");
 
 my @seq = $g->tokenize (['D']);
 my ($p, $q) = $g->prefix_Inside (\@seq);
@@ -37,6 +37,6 @@ END
 test ($g->print_Inside ($p, $q), $inside, "DP matrix");
 
 my $tbparse = $g->traceback_Inside ($p, $q);
-test ($g->print_parse_tree($tbparse), "(A->(B->D,end),(C->end,end))", "Sampled parse");
+test ($g->print_parse_tree($tbparse), "(A->(B->D),(C->end))", "Sampled parse");
 
 dump_log();

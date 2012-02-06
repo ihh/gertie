@@ -51,7 +51,7 @@ for (my $k = 0; $k < $samples; ++$k) {
     ++$tb{$g->print_parse_tree($tbparse)};
 }
 
-my $parse1 = "(A->D,end)";
+my $parse1 = "(A->D)";
 my $parse2 = "(A->D,D)";
 my $min = $samples * .48;  # leave some margin for error
 

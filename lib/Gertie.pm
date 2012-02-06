@@ -28,7 +28,8 @@ sub new_gertie {
     my $self = AutoHash->new ( 'graph' => Graph::Directed->new,
 			       'end' => "end",
 			       'rule' => [],
-			       'outgoing_prob' => {},
+			       'rule_prob_by_name' => {},
+			       'outgoing_prob_by_name' => {},
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
@@ -81,10 +82,24 @@ sub parse_line {
     my ($self, $line) = @_;
     local $_;
     $_ = $line;
-    return if /^\s*\/\//;  # // comments
-    if (/^\s*(\w+)\s*\->\s*(\w+)\s*(\w*)\s*([\d\.]*)\s*;\s*$/) {
+    return unless /\S/;  # ignore blank lines
+    return if /^\s*\/\//;  # ignore C++-style comments ("// ...")
+    if (/^\s*([A-Za-z_]\w*)\s*\->\s*([A-Za-z_]\w*)\s*(|[A-Za-z_]\w*)\s*([\d\.]*)\s*;?\s*$/) {  # Transition (A->B) or Chomsky-form rule (A->B C) with optional probability
 	my ($lhs, $rhs1, $rhs2, $prob) = ($1, $2, $3, $4);
 	$self->add_rule ($lhs, $rhs1, $rhs2, $prob);
+    } elsif (/^\s*([A-Za-z_]\w*)\s*\->((\s*[A-Za-z_]\w*\b)*)\s*([\d\.]*)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
+	my ($lhs, $rhs, $rhs1, $prob) = ($1, $2, $3, $4);
+	# Convert "A->B C D E" into "A -> B.C.D E;  B.C.D -> B.C D;  B.C -> B C"
+	my @rhs = split /\s+/, $rhs;
+	confess "Parse error" unless @rhs >= 2;
+	while (@rhs >= 2) {
+	    my $rhs2 = pop @rhs;
+	    my $rhs1 = join (".", @rhs);
+	    $self->add_rule ($lhs, $rhs1, $rhs2, $prob);
+	    $lhs = $rhs1;
+	}
+    } else {
+	warn "Unrecognized line: ", $_;
     }
 }
 
@@ -94,14 +109,23 @@ sub add_rule {
     $rhs2 = $self->end unless length($rhs2);
     $prob = 1 unless length($prob);
     # Check the rule is valid
-    die if $lhs eq $self->end;  # No rules starting with 'end'
-    die if $rhs1 eq $self->end && $rhs2 ne $self->end;  # No rules A -> end C
-    die if $prob < 0;  # Rule weights are nonnegative
+    confess if $lhs eq $self->end;  # No rules starting with 'end'
+    confess if $rhs1 eq $self->end && $rhs2 ne $self->end;  # No rules A -> end C
+    confess if $prob < 0;  # Rule weights are nonnegative
     $self->{'start'} = $lhs unless defined $self->{'start'};  # First named nonterminal is start
     return if $prob == 0;  # Don't bother tracking zero-weight rules
+    # Be idempotent
+    if (exists $self->rule_prob_by_name->{$lhs}->{$rhs1}->{$rhs2}) {
+	my $old_prob = $self->rule_prob_by_name->{$lhs}->{$rhs1}->{$rhs2};
+	if ($old_prob != $prob) {
+	    confess "Attempt to change probability of rule ($lhs->$rhs1 $rhs2) from $old_prob to $prob";
+	}
+	return;
+    }
     # Record the rule
     push @{$self->rule}, [$lhs, $rhs1, $rhs2, $prob, @{$self->rule} + 0];
-    $self->outgoing_prob->{$lhs} += $prob;
+    $self->rule_prob_by_name->{$lhs}->{$rhs1}->{$rhs2} = $prob;
+    $self->outgoing_prob_by_name->{$lhs} += $prob;
     $self->graph->add_edge ($lhs, $rhs1);
 }
 
@@ -133,7 +157,7 @@ sub index_rules {
     $self->{'partial_prob'} = {};
     for my $rule (@{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
-	$prob /= $self->outgoing_prob->{$lhs};
+	$prob /= $self->outgoing_prob_by_name->{$lhs};
 	warn "Indexed rule: $lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
 	my ($lhs_id, $rhs1_id, $rhs2_id) = map ($self->sym_id->{$_}, $lhs, $rhs1, $rhs2);
 	push @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}}, [$rhs2_id, $prob, $rule_index];
@@ -271,11 +295,12 @@ sub traceback_Inside {
     my $p_prob = $p->[0]->[$len]->{$self->start_id};
     my $is_complete = sample ([defined($q_prob) ? $q_prob : 0,
 			       defined($p_prob) ? $p_prob : 0]);
-    if ($is_complete) {
-	return $self->traceback_Inside_p ($p, 0, $len, $self->start_id);
-    } else {
-	return $self->traceback_Inside_q ($p, $q, 0, $self->start_id);
-    }
+    my $parse_tree =
+	$is_complete
+	? $self->traceback_Inside_p ($p, 0, $len, $self->start_id)
+	: $self->traceback_Inside_q ($p, $q, 0, $self->start_id);
+
+    return $self->flatten_parse_tree ($parse_tree);
 }
 
 sub traceback_Inside_p {
@@ -336,12 +361,12 @@ sub traceback_Inside_q {
     return [$self->sym_name->[$lhs],
 	    $k > $len
 	    ? ($self->traceback_Inside_q ($p, $q, $i, $rhs1),
-	       $self->simulate ($rhs2))
+	       $self->simulate_Chomsky ($rhs2))
 	    : ($self->traceback_Inside_p ($p, $i, $k, $rhs1),
 	       $self->traceback_Inside_q ($p, $q, $k, $rhs2))];
 }
 
-sub simulate {
+sub simulate_Chomsky {
     my ($self, $lhs) = @_;
     $lhs = $self->start_id unless defined $lhs;
     return [$self->sym_name->[$lhs]] if $self->is_term->{$lhs};
@@ -357,8 +382,14 @@ sub simulate {
     }
     my ($rhs1, $rhs2) = @{sample (\@prob, \@rhs)};
     return [$self->sym_name->[$lhs],
-	    $self->simulate($rhs1),
-	    $self->simulate($rhs2)];
+	    $self->simulate_Chomsky($rhs1),
+	    $self->simulate_Chomsky($rhs2)];
+}
+
+sub simulate {
+    my ($self, $lhs) = @_;
+    my $parse_tree = $self->simulate_Chomsky ($lhs);
+    return $self->flatten_parse_tree ($parse_tree);
 }
 
 sub sample {
@@ -380,9 +411,32 @@ sub print_parse_tree {
     my ($self, $tree) = @_;
     my $lhs = $tree->[0];
     my @rhs = (@$tree)[1..$#$tree];
+    while (@rhs > 1 && $rhs[$#rhs]->[0] eq $self->end) { pop @rhs }
     return @rhs > 0
 	? ("(" . $lhs . "->" . join (",", map ($self->print_parse_tree($_), @rhs)) . ")")
 	: $lhs;
+}
+
+# flatten Chomsky-fied nodes
+sub flatten_parse_tree {
+    my ($self, $tree) = @_;
+    my $lhs = $tree->[0];
+    my @rhs = (@$tree)[1..$#$tree];
+    my $retry;
+    do {
+	$retry = 0;
+	my @new_rhs;
+	for my $rhs (@rhs) {
+	    if ($rhs->[0] =~ /\./) {
+		push @new_rhs, @{$rhs}[1..$#$rhs];
+		$retry = 1;
+	    } else {
+		push @new_rhs, $rhs;
+	    }
+	}
+	@rhs = @new_rhs;
+    } while ($retry);
+    return [$lhs, map ($self->flatten_parse_tree($_), @rhs)];
 }
 
 1;
