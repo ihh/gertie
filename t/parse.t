@@ -20,7 +20,7 @@ sub dump_log {
 }
 
 
-my $g = Gertie->new_from_string ('A->B C;B->D;C->end;', verbose=>99);
+my $g = Gertie->new_from_string ('A->B C;B->D;C->end;');
 
 my $simparse = $g->simulate;
 test ($g->print_parse_tree($simparse), "(A->(B->D,end),(C->end,end))", "Simulated parse");
