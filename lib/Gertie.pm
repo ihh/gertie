@@ -57,6 +57,7 @@ sub parse_files {
     local *FILE;
     local $_;
     for my $filename (@filename) {
+	warn $filename;
 	open FILE, "<$filename";
 	my @text = <FILE>;
 	close FILE;
