@@ -1,5 +1,9 @@
 #!/usr/bin/perl -w
 
+use Cwd qw(abs_path);
+use FindBin;
+use lib abs_path("$FindBin::Bin/lib");
+
 use Gertie;
 
 my $g = Gertie->new_from_file ('GRAMMAR', 'verbose' => 99);
