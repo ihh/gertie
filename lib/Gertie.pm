@@ -28,6 +28,7 @@ sub new_gertie {
     my $self = AutoHash->new ( 'end' => "end",
 			       'rule' => [],
 			       'symbol' => {},
+			       'max_inside_len' => undef,
 			       'rule_prob_by_name' => {},
 			       'outgoing_prob_by_name' => {},
 			       'verbose' => 0,
@@ -277,7 +278,9 @@ sub tokenize {
 # subroutine to compute Inside matrix for given tokenized prefix sequence
 sub prefix_Inside {
     my ($self, $tokseq) = @_;
+
     my $len = @{$tokseq} + 0;
+    my $max_inside_len = $self->max_inside_len;
     my $symbols = @{$self->sym_name} + 0;
 
     # Create Inside matrix
@@ -295,9 +298,11 @@ sub prefix_Inside {
     # p(i,j,sym) = \sum_{k=i}^j \sum_{lhs->rhs1 rhs1} P(lhs->rhs1 rhs2) p(i,k,rhs1) * p(k,j,rhs2)
     for (my $j = 1; $j <= $len; ++$j) {
 	for (my $i = $j - 1; $i >= 0; --$i) {
+	    next if defined($max_inside_len) && $j-$i > $max_inside_len && $i > 0;
 	    for (my $lhs = 0; $lhs < $symbols; ++$lhs) {
 		my $rule_by_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
 		for (my $k = $i; $k <= $j; ++$k) {
+		    next if defined($max_inside_len) && $j-$k > $max_inside_len && $k > 0;
 		    for my $rhs1 (sort keys %{$p->[$k]->[$i]}) {
 			if (defined $rule_by_rhs1->{$rhs1}) {
 			    my $rhs1_prob = $p->[$k]->[$i]->{$rhs1};
