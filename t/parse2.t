@@ -30,7 +30,7 @@ sub dump_log {
 my $g = Gertie->new_from_string ('A->D D;A->D;');
 
 my @seq = $g->tokenize (['D']);
-my ($p, $q) = $g->prefix_Inside (\@seq);
+my $pq = $g->prefix_Inside (\@seq);
 
 my $inside = <<END;
 Prefix 1..: D=>1
@@ -39,7 +39,7 @@ Prefix 0..: A=>0.5
 Inside (0,0): end=>1
 Inside (0,1): D=>1 A=>0.5
 END
-test ($g->print_Inside ($p, $q), $inside, "DP matrix");
+test ($pq->to_string, $inside, "DP matrix");
 
 srand(1);
 my (%sim, %tb);
@@ -47,7 +47,7 @@ my $samples = 1_000;
 for (my $k = 0; $k < $samples; ++$k) {
     my $simparse = $g->simulate;
     ++$sim{$g->print_parse_tree($simparse)};
-    my $tbparse = $g->traceback_Inside ($p, $q);
+    my $tbparse = $pq->traceback;
     ++$tb{$g->print_parse_tree($tbparse)};
 }
 

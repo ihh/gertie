@@ -38,11 +38,6 @@ If the method is called with an argument, it's a setter; otherwise, it's a gette
 
 package AutoHash;
 
-use Exporter;
-@ISA = qw (Exporter);
-@EXPORT = qw (new AUTOLOAD);
-@EXPORT_OK = @EXPORT;
-
 use strict;
 use vars '@ISA';
 
