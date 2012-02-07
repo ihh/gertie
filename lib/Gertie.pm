@@ -81,24 +81,21 @@ sub parse_line {
     $_ = $line;
     return unless /\S/;  # ignore blank lines
     return if /^\s*\/\//;  # ignore C++-style comments ("// ...")
-    if (/^\s*([A-Za-z_]\w*)\s*\->\s*([A-Za-z_]\w*)\s*(|[A-Za-z_]\w*)\s*([\d\.]*)\s*;?\s*$/) {  # Transition (A->B) or Chomsky-form rule (A->B C) with optional probability
-	my ($lhs, $rhs1, $rhs2, $prob) = ($1, $2, $3, $4);
+    my $sym_regex = '[A-Za-z_]\w*\b([\?\*\+]?|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\})';
+    if (/^\s*($sym_regex)\s*\->\s*($sym_regex)\s*(|$sym_regex)\s*([\d\.]*)\s*;?\s*$/) {  # Transition (A->B) or Chomsky-form rule (A->B C) with optional probability
+	my ($lhs, $lhs_crap, $rhs1, $rhs1_crap, $rhs2, $rhs2_crap, $prob) = ($1, $2, $3, $4, $5, $6, $7);
+	($rhs1, $rhs2) = $self->process_quantifiers ($rhs1, $rhs2);
 	$self->add_rule ($lhs, $rhs1, $rhs2, $prob);
-    } elsif (/^\s*([A-Za-z_]\w*)\s*\->((\s*[A-Za-z_]\w*\b)*)\s*([\d\.]*)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
-	my ($lhs, $rhs, $rhs1, $prob) = ($1, $2, $3, $4);
+    } elsif (/^\s*($sym_regex)\s*\->((\s*$sym_regex)*)\s*([\d\.]*)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
+	my ($lhs, $lhs_crap, $rhs, $rhs1, $rhs_crap, $prob) = ($1, $2, $3, $4, $5, $6);
 	# Convert "A->B C D E" into "A -> B.C.D E;  B.C.D -> B.C D;  B.C -> B C"
 	$rhs =~ s/^\s*(.*?)\s*/$1/;
 	my @rhs = split /\s+/, $rhs;
 	confess "Parse error" unless @rhs >= 2;
-	while (@rhs >= 2) {
-	    my $rhs2 = pop @rhs;
-	    my $rhs1 = join (".", @rhs);
-	    $self->add_rule ($lhs, $rhs1, $rhs2, $prob);
-	    $lhs = $rhs1;
-	    $prob = 1;
-	}
-    } elsif (/^\s*([A-Za-z_]\w*)\s*\->((\s*[A-Za-z_]\w*\b)*\s*([\d\.]*)(\s*\|(\s*[A-Za-z_]\w*\b)*\s*([\d\.]*))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
-	my ($lhs, $all_rhs) = ($1, $2);
+	@rhs = $self->process_quantifiers (@rhs);
+	$self->add_non_Chomsky_rule ($lhs, \@rhs, $prob);
+    } elsif (/^\s*($sym_regex)\s*\->((\s*$sym_regex\b)*\s*([\d\.]*)(\s*\|(\s*$sym_regex\b)*\s*([\d\.]*))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
+	my ($lhs, $lhs_crap, $all_rhs) = ($1, $2, $3);
 	my @rhs = split /\|/, $all_rhs;
 	for my $rhs (@rhs) { $self->parse_line ("$lhs -> $rhs") }
     } else {
@@ -112,6 +109,7 @@ sub add_rule {
     $rhs2 = $self->end unless length($rhs2);
     $prob = 1 unless length($prob);
     # Check the rule is valid
+    confess unless defined($rhs1) && length($rhs1);
     confess if $lhs eq $self->end;  # No rules starting with 'end'
     confess if $prob < 0;  # Rule weights are nonnegative
     $self->{'start'} = $lhs unless defined $self->{'start'};  # First named nonterminal is start
@@ -129,6 +127,65 @@ sub add_rule {
     $self->rule_prob_by_name->{$lhs}->{$rhs1}->{$rhs2} = $prob;
     $self->outgoing_prob_by_name->{$lhs} += $prob;
     grep (++$self->symbol->{$_}, $lhs, $rhs1, $rhs2);
+}
+
+sub add_non_Chomsky_rule {
+    my ($self, $lhs, $rhs_listref, $prob) = @_;
+    my @rhs = @$rhs_listref;
+    if (@rhs == 0) {
+	$self->add_rule ($lhs, $self->end, undef, $prob);
+    } elsif (@rhs == 1) {
+	$self->add_rule ($lhs, $rhs[0], undef, $prob);
+    } else {
+	while (@rhs >= 2) {
+	    my $rhs2 = pop @rhs;
+	    my $rhs1 = join (".", @rhs);
+	    $self->add_rule ($lhs, $rhs1, $rhs2, $prob);
+	    $lhs = $rhs1;
+	    $prob = 1;
+	}
+    }
+}
+
+sub process_quantifiers {
+    my ($self, @sym) = @_;
+    my @sym_ret;
+    for my $sym (@sym) {
+	$sym =~ s/\{(\d+)\}$/\{$1,$1\}/;  # Convert X{N} into X{N,N}
+	$sym =~ s/\{0,1\}$/?/;  # Convert X{0,1} into X?
+	$sym =~ s/\{0,\}$/*/;   # Convert X{0,} into X*
+	$sym =~ s/\{1,1\}$//;   # Convert X{1,1} into X
+	$sym =~ s/\{1,\}$/+/;   # Convert X{1,} into X+
+	push @sym_ret, $sym;
+	if ($sym =~ /^(\w+)\?/) {
+	    $self->add_rule ($sym, $1);
+	    $self->add_rule ($sym, $self->end);
+	} elsif ($sym =~ /^(\w+)\*/) {
+	    $self->add_rule ($sym, $1, $sym);
+	    $self->add_rule ($sym, $self->end);
+	} elsif ($sym =~ /^(\w+)\+/) {
+	    my $base = $1;
+	    $self->add_rule ($sym, $base, $sym);
+	    $self->add_rule ($sym, $base);
+	} elsif ($sym =~ /^(\w+)\{(\d*),(\d*)\}/) {
+	    my ($base, $min, $max) = ($1, $2, $3);
+	    confess "Bad quantifiers in nonterminal $sym" if (length($max) && $max < $min) || (length($min) && $min <= 0) || ($min eq "" && $max eq "");
+	    if (length $max) {
+		for (my $n = $min; $n <= $max; ++$n) {
+		    if ($n == 0) {
+			$self->add_rule ($sym, $self->end);
+		    } else {
+			$self->add_non_Chomsky_rule ($sym, [map ($base, 1..$n)]);
+		    }
+		}
+	    } else {  # $min > 1
+		$self->add_non_Chomsky_rule ($sym, [map ($base, 1..$min-1), "$base+"]);
+		$self->add_rule ("$base+", $base, "$base+");
+		$self->add_rule ("$base+", $base);
+	    }
+	}
+    }
+    return @sym_ret;
 }
 
 # Index: convert symbols & rules to integers
