@@ -269,7 +269,8 @@ sub to_string {
 # subroutine to tokenize a sequence
 sub tokenize {
     my ($self, $seq) = @_;
-    # TODO: more error checking here
+    my @undefs = grep (!exists($self->sym_id->{$_}), @$seq);
+    confess "Undefined symbols (@undefs)" if @undefs;
     return map ($self->sym_id->{$_}, @$seq);
 }
 
@@ -519,6 +520,16 @@ sub flatten_parse_tree {
 	@rhs = @new_rhs;
     } while ($retry);
     return [$lhs, map ($self->flatten_parse_tree($_), @rhs)];
+}
+
+# convert a parse tree into a sequence
+sub parse_tree_sequence {
+    my ($self, $tree) = @_;
+    my $lhs = $tree->[0];
+    my @rhs = (@$tree)[1..$#$tree];
+    return @rhs > 0
+	? map ($self->parse_tree_sequence($_), @rhs)
+	: ($lhs eq $self->end ? () : $lhs);
 }
 
 1;
