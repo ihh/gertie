@@ -5,7 +5,6 @@ use Gertie;
 extends 'AutoHash';
 
 use strict;
-use vars ('@ISA', '@EXPORT', '@EXPORT_OK');
 
 # generic imports
 use Carp qw(carp croak cluck confess);

@@ -39,7 +39,6 @@ If the method is called with an argument, it's a setter; otherwise, it's a gette
 package AutoHash;
 
 use strict;
-use vars '@ISA';
 
 use Carp;
 
