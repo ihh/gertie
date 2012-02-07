@@ -283,10 +283,13 @@ sub prefix_Inside {
     # Create Inside matrix
     # p(i,j,sym) = P(seq[i]..seq[j-1] | sym)
     #            = probability that parse tree rooted at sym will generate subseq i..j-1 (inclusive)
-    my $p = [ map ([map ({}, $_..$len)], 0..$len) ];
+    # Note:
+    # p(i,j,sym) is stored as $p->[$j]->[$i]->{$sym}
+    # This facilitates re-using DP matrices for sequences with shared prefixes
+    my $p = [ map ([map ({}, 0..$_)], 0..$len) ];
     my %empty = $self->empty_prob;
     for my $i (0..$len) { $p->[$i]->[$i] = \%empty }
-    for my $i (0..$len-1) { $p->[$i]->[$i+1]->{$tokseq->[$i]} = 1 }
+    for my $i (0..$len-1) { $p->[$i+1]->[$i]->{$tokseq->[$i]} = 1 }
 
     # Inside recursion
     # p(i,j,sym) = \sum_{k=i}^j \sum_{lhs->rhs1 rhs1} P(lhs->rhs1 rhs2) p(i,k,rhs1) * p(k,j,rhs2)
@@ -295,13 +298,13 @@ sub prefix_Inside {
 	    for (my $lhs = 0; $lhs < $symbols; ++$lhs) {
 		my $rule_by_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
 		for (my $k = $i; $k <= $j; ++$k) {
-		    for my $rhs1 (sort keys %{$p->[$i]->[$k]}) {
+		    for my $rhs1 (sort keys %{$p->[$k]->[$i]}) {
 			if (defined $rule_by_rhs1->{$rhs1}) {
-			    my $rhs1_prob = $p->[$i]->[$k]->{$rhs1};
+			    my $rhs1_prob = $p->[$k]->[$i]->{$rhs1};
 			    for my $rule (@{$rule_by_rhs1->{$rhs1}}) {
 				my ($rhs2, $rule_prob, $rule_index) = @$rule;
-				if (defined (my $rhs2_prob = $p->[$k]->[$j]->{$rhs2})) {
-				    $p->[$i]->[$j]->{$lhs} += $rhs1_prob * $rhs2_prob * $rule_prob;
+				if (defined (my $rhs2_prob = $p->[$j]->[$k]->{$rhs2})) {
+				    $p->[$j]->[$i]->{$lhs} += $rhs1_prob * $rhs2_prob * $rule_prob;
 				    warn "p($i,$j,",$self->sym_name->[$lhs],") += p($i,$k,",$self->sym_name->[$rhs1],")(=$rhs1_prob) * p($k,$j,",$self->sym_name->[$rhs2],")(=$rhs2_prob) * P(rule)(=$rule_prob)" if $self->verbose > 1;
 				}
 			    }
@@ -328,7 +331,7 @@ sub prefix_Inside {
 		for my $rule (@$rule_list) {
 		    my ($rhs2, $rule_prob, $rule_index) = @$rule;
 		    for (my $k = $i; $k <= $len; ++$k) {
-			if (defined (my $rhs1_prob = $p->[$i]->[$k]->{$rhs1})
+			if (defined (my $rhs1_prob = $p->[$k]->[$i]->{$rhs1})
 			    && defined (my $rhs2_prob = $q->[$k]->{$rhs2})) {
 			    $q->[$i]->{$lhs} += $rule_prob * $rhs1_prob * $rhs2_prob;
 			    warn "q($i,",$self->sym_name->[$lhs],") += p($i,$k,",$self->sym_name->[$rhs1],")(=$rhs1_prob) * q($k,",$self->sym_name->[$rhs2],")(=$rhs2_prob) * P(rule)(=$rule_prob)" if $self->verbose > 1;
@@ -362,8 +365,8 @@ sub print_Inside {
 
 	for (my $j = $i; $j <= $len; ++$j) {
 	    push @out, "Inside ($i,$j):";
-	    for my $sym (sort {$a<=>$b} keys %{$p->[$i]->[$j]}) {
-		push @out, " ", $self->sym_name->[$sym], "=>", $p->[$i]->[$j]->{$sym};
+	    for my $sym (sort {$a<=>$b} keys %{$p->[$j]->[$i]}) {
+		push @out, " ", $self->sym_name->[$sym], "=>", $p->[$j]->[$i]->{$sym};
 	    }
 	    push @out, "\n";
 	}
@@ -375,7 +378,7 @@ sub traceback_Inside {
     my ($self, $p, $q) = @_;
     my $len = $#$p;
     my $q_prob = $q->[0]->{$self->start_id};
-    my $p_prob = $p->[0]->[$len]->{$self->start_id};
+    my $p_prob = $p->[$len]->[0]->{$self->start_id};
     my $is_complete = sample ([defined($q_prob) ? $q_prob : 0,
 			       defined($p_prob) ? $p_prob : 0]);
     my $parse_tree =
@@ -394,12 +397,12 @@ sub traceback_Inside_p {
     confess "Traceback error: i=$i, j=$j, lhs=", $self->sym_name->[$lhs] unless defined $rule_by_rhs1;
     for (my $k = $i; $k <= $j; ++$k) {
 	for my $rhs1 (keys %$rule_by_rhs1) {
-	    if (defined $p->[$i]->[$k]->{$rhs1}) {
+	    if (defined $p->[$k]->[$i]->{$rhs1}) {
 		for my $rule (@{$rule_by_rhs1->{$rhs1}}) {
 		    my ($rhs2, $rule_prob, $rule_index) = @$rule;
-		    if (defined $p->[$k]->[$j]->{$rhs2}) {
+		    if (defined $p->[$j]->[$k]->{$rhs2}) {
 			push @rhs_k, [$rhs1, $rhs2, $k];
-			push @prob, $p->[$i]->[$k]->{$rhs1} * $p->[$k]->[$j]->{$rhs2} * $rule_prob;
+			push @prob, $p->[$k]->[$i]->{$rhs1} * $p->[$j]->[$k]->{$rhs2} * $rule_prob;
 		    }
 		}
 	    }
@@ -421,12 +424,12 @@ sub traceback_Inside_q {
     confess "Traceback error: i=$i, lhs=", $self->sym_name->[$lhs] unless defined $rule_by_rhs1;
     while (my ($rhs1, $rule_list) = each %$rule_by_rhs1) {
 	for (my $k = $i; $k <= $len; ++$k) {
-	    if (defined $p->[$i]->[$k]->{$rhs1}) {
+	    if (defined $p->[$k]->[$i]->{$rhs1}) {
 		for my $rule (@$rule_list) {
 		    my ($rhs2, $rule_prob, $rule_index) = @$rule;
 		    if (defined $q->[$k]->{$rhs2}) {
 			push @rhs_k, [$rhs1, $rhs2, $k];
-			push @prob, $p->[$i]->[$k]->{$rhs1} * $q->[$k]->{$rhs2} * $rule_prob;
+			push @prob, $p->[$k]->[$i]->{$rhs1} * $q->[$k]->{$rhs2} * $rule_prob;
 		    }
 		}
 	    }
