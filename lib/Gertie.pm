@@ -149,10 +149,11 @@ sub process_quantifiers {
     my @sym_ret;
     for my $sym (@sym) {
 	$sym =~ s/\{(\d+)\}$/\{$1,$1\}/;  # Convert X{N} into X{N,N}
-	$sym =~ s/\{0,1\}$/?/;  # Convert X{0,1} into X?
-	$sym =~ s/\{0,\}$/*/;   # Convert X{0,} into X*
+	$sym =~ s/\{0?,1\}$/?/;  # Convert X{0,1} into X?
+	$sym =~ s/\{0?,\}$/*/;   # Convert X{0,} into X*
 	$sym =~ s/\{1,1\}$//;   # Convert X{1,1} into X
 	$sym =~ s/\{1,\}$/+/;   # Convert X{1,} into X+
+	$sym =~ s/\{0,(\d+)\}$/{,$1}/;  # Convert X{0,N} into X{,N}
 	push @sym_ret, $sym;
 	if ($sym =~ /^(\w+)\?/) {
 	    $self->add_rule ($sym, $1);
