@@ -19,7 +19,7 @@ use Graph::Directed;
 use AutoHash;
 
 @ISA = qw (AutoHash);
-@EXPORT = qw (new_from_file new_from_string to_string simulate tokenize prefix_Inside traceback_Inside print_Inside print_parse_tree AUTOLOAD);
+@EXPORT = qw (new_from_file new_from_string to_string simulate tokenize prefix_Inside traceback_Inside print_Inside print_parse_tree parse_tree_sequence AUTOLOAD);
 @EXPORT_OK = @EXPORT;
 
 # constructor
