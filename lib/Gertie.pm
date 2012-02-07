@@ -77,21 +77,23 @@ sub parse_line {
     $_ = $line;
     return unless /\S/;  # ignore blank lines
     return if /^\s*\/\//;  # ignore C++-style comments ("// ...")
-    my $sym_regex = '[A-Za-z_]\w*\b([\?\*\+]?|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\})';
-    if (/^\s*($sym_regex)\s*\->\s*($sym_regex)\s*(|$sym_regex)\s*([\d\.]*)\s*;?\s*$/) {  # Transition (A->B) or Chomsky-form rule (A->B C) with optional probability
-	my ($lhs, $lhs_crap, $rhs1, $rhs1_crap, $rhs2, $rhs2_crap, $prob) = ($1, $2, $3, $4, $5, $6, $7);
+    my $lhs_regex = '[A-Za-z_]\w*\b';
+    my $rhs_regex = $lhs_regex . '([\?\*\+]?|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\})';
+    my $prob_regex = '[\d\.]*';
+    if (/^\s*($lhs_regex)\s*\->\s*($rhs_regex)\s*(|$rhs_regex)\s*($prob_regex)\s*;?\s*$/) {  # Transition (A->B) or Chomsky-form rule (A->B C) with optional probability
+	my ($lhs, $rhs1, $rhs1_crap, $rhs2, $rhs2_crap, $prob) = ($1, $2, $3, $4, $5, $6);
 	($rhs1, $rhs2) = $self->process_quantifiers ($rhs1, $rhs2);
 	$self->add_rule ($lhs, $rhs1, $rhs2, $prob);
-    } elsif (/^\s*($sym_regex)\s*\->((\s*$sym_regex)*)\s*([\d\.]*)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
-	my ($lhs, $lhs_crap, $rhs, $rhs1, $rhs_crap, $prob) = ($1, $2, $3, $4, $5, $6);
+    } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*)\s*($prob_regex)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
+	my ($lhs, $rhs, $rhs1, $rhs_crap, $prob) = ($1, $2, $3, $4, $5);
 	# Convert "A->B C D E" into "A -> B.C.D E;  B.C.D -> B.C D;  B.C -> B C"
 	$rhs =~ s/^\s*(.*?)\s*/$1/;
 	my @rhs = split /\s+/, $rhs;
 	confess "Parse error" unless @rhs >= 2;
 	@rhs = $self->process_quantifiers (@rhs);
 	$self->add_non_Chomsky_rule ($lhs, \@rhs, $prob);
-    } elsif (/^\s*($sym_regex)\s*\->((\s*$sym_regex\b)*\s*([\d\.]*)(\s*\|(\s*$sym_regex\b)*\s*([\d\.]*))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
-	my ($lhs, $lhs_crap, $all_rhs) = ($1, $2, $3);
+    } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex\b)*\s*($prob_regex)(\s*\|(\s*$rhs_regex)*\s*($prob_regex))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
+	my ($lhs, $all_rhs) = ($1, $2);
 	my @rhs = split /\|/, $all_rhs;
 	for my $rhs (@rhs) { $self->parse_line ("$lhs -> $rhs") }
     } else {
