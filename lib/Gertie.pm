@@ -169,9 +169,9 @@ sub process_quantifiers {
 	    $self->add_rule ($sym, $base);
 	} elsif ($sym =~ /^(\w+)\{(\d*),(\d*)\}/) {
 	    my ($base, $min, $max) = ($1, $2, $3);
-	    confess "Bad quantifiers in nonterminal $sym" if (length($max) && $max < $min) || (length($min) && $min <= 0) || ($min eq "" && $max eq "");
+	    confess "Bad quantifiers in nonterminal $sym" if (length($max) && $max < 0) || (length($min) && $min <= 0) || (length($max) && length($min) && $max < $min) || ($min eq "" && $max eq "");
 	    if (length $max) {
-		for (my $n = $min; $n <= $max; ++$n) {
+		for (my $n = length($min) ? $min : 0; $n <= $max; ++$n) {
 		    if ($n == 0) {
 			$self->add_rule ($sym, $self->end);
 		    } else {

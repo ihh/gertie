@@ -30,22 +30,21 @@ END
 test ($gs, $gt, "Canonical form of grammar with multiple RHS separated by '|'");
 
 
-my $h = Gertie->new_from_string ('A->B+ C{,3} D{,5} E{1,4} F* G?');
+my $h = Gertie->new_from_string ('A->B+ C{,3} D{,4} E{1,4} F* G?');
 my $hs = $h->to_string;
 my $ht = <<END;
-A -> B+ C{,3} D{,5} E{1,4} F* G?;
+A -> B+ C{,3} D{,4} E{1,4} F* G?;
 B+ -> B B+  0.5;
 B+ -> B  0.5;
 C{,3} -> C C  0.25;
 C{,3} -> C  0.25;
 C{,3} -> C C C  0.25;
 C{,3} -> end  0.25;
-D{,5} -> D D  0.166666666666667;
-D{,5} -> D  0.166666666666667;
-D{,5} -> D D D  0.166666666666667;
-D{,5} -> D D D D  0.166666666666667;
-D{,5} -> D D D D D  0.166666666666667;
-D{,5} -> end  0.166666666666667;
+D{,4} -> D D  0.2;
+D{,4} -> D  0.2;
+D{,4} -> D D D  0.2;
+D{,4} -> D D D D  0.2;
+D{,4} -> end  0.2;
 E{1,4} -> E E  0.25;
 E{1,4} -> E  0.25;
 E{1,4} -> E E E  0.25;
