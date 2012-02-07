@@ -277,11 +277,18 @@ sub tokenize {
 
 # subroutine to compute Inside matrix for given tokenized prefix sequence
 sub prefix_Inside {
-    my ($self, $tokseq) = @_;
+    my ($self, $tokseq, $prev_tokseq, $prev_p) = @_;
 
     my $len = @{$tokseq} + 0;
     my $max_inside_len = $self->max_inside_len;
     my $symbols = @{$self->sym_name} + 0;
+
+    my $shared_len = 0;
+    if (defined $prev_tokseq) {
+	while ($shared_len < @$prev_tokseq && $shared_len < @$tokseq && $tokseq->[$shared_len] == $prev_tokseq->[$shared_len]) {
+	    ++$shared_len;
+	}
+    }
 
     # Create Inside matrix
     # p(i,j,sym) = P(seq[i]..seq[j-1] | sym)
@@ -297,6 +304,7 @@ sub prefix_Inside {
     # Inside recursion
     # p(i,j,sym) = \sum_{k=i}^j \sum_{lhs->rhs1 rhs1} P(lhs->rhs1 rhs2) p(i,k,rhs1) * p(k,j,rhs2)
     for (my $j = 1; $j <= $len; ++$j) {
+	if ($j <= $shared_len) { $p->[$j] = $prev_p->[$j]; next }
 	for (my $i = $j - 1; $i >= 0; --$i) {
 	    next if defined($max_inside_len) && $j-$i > $max_inside_len && $i > 0;
 	    for (my $lhs = 0; $lhs < $symbols; ++$lhs) {
