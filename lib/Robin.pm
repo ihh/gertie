@@ -39,7 +39,10 @@ sub play {
 	    my %term_prob = $self->inside->next_term_prob ($agent);
 	    my @next_term = sort { $term_prob{$a} <=> $term_prob{$b} } keys %term_prob;
 	    my @next_prob = map ($term_prob{$_}, @next_term);
-	    next unless @next_term;
+	    unless (@next_term) {
+		warn "[No available move for $agent]" if $self->verbose;
+		next;
+	    }
 	    my $next_term;
 	    if ($agent eq $self->gertie->player_agent) {
 		$next_term = $self->player_choice (@next_term);
@@ -62,7 +65,7 @@ sub print_term {
 
 sub player_choice {
     my ($self, @options) = @_;
-    return $options[0] if @options == 1;
+#    return $options[0] if @options == 1;
     my $page = 0;
     my $choice;
     while (!defined $choice) {
