@@ -10,15 +10,14 @@ use strict;
 # constructors
 sub new_robin {
     my ($class, $gertie, @args) = @_;
-    my $tokseq = [];
     my $self = AutoHash->new ( 'gertie' => $gertie,
-			       'tokseq' => $tokseq,
-			       'inside' => $gertie->prefix_Inside($tokseq),
-			       'options_per_page' => 5,
+			       'seq' => [],
+			       'tokseq' => [],
+			       'inside' => $gertie->prefix_Inside([]),
+			       'options_per_page' => 3,
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
-    $self->inside ($self->gertie->prefix_Inside([]));
     return $self;
 }
 
@@ -34,7 +33,8 @@ sub play {
     while (1) {
 	for my $agent (@{$self->gertie->agents}) {
 	    warn "[Turn: $agent]" if $self->verbose;
-	    warn $self->inside->to_string;
+	    warn "Sequence so far: (@{$self->seq})" if $self->verbose;
+	    warn "Inside matrix:\n", $self->inside->to_string if $self->verbose > 9;
 	    next unless $self->inside->continue_prob > 0;
 	    my %term_prob = $self->inside->next_term_prob ($agent);
 	    my @next_term = sort { $term_prob{$a} <=> $term_prob{$b} } keys %term_prob;
@@ -47,6 +47,7 @@ sub play {
 		$next_term = Gertie::sample (\@next_prob, \@next_term);
 	    }
 	    $self->print_term ($next_term);
+	    push @{$self->seq}, $next_term;
 	    push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
 	    my $inside = $self->gertie->prefix_Inside ($self->tokseq, $self->inside);
 	    $self->inside ($inside);
@@ -56,7 +57,7 @@ sub play {
 
 sub print_term {
     my ($self, $term) = @_;
-    print $term;
+    print $term, "\n";
 }
 
 sub player_choice {
@@ -71,14 +72,18 @@ sub player_choice {
 	my @menu = (@options[$min..$max]);
 	my ($next_page, $prev_page) = (-1, -1);
 	if ($max < $#options) { push @menu, "More options"; $next_page = $#menu }
-	if ($page > 0) { push @menu, "Go back"; $prev_page = $#menu }
-	print map ("$_  $menu[$_]\n", 0..$#menu), "Enter your choice: ";
+	if ($page > 0) { push @menu, "Previous options"; $prev_page = $#menu }
+#	if (@options > $self->options_per_page) { print "[Page ", $page + 1, "]\n" }
+	print
+	    "Your choices:\n",
+	    map (" ".($_+1).".  $menu[$_]\n", 0..$#menu),
+	    "Enter your choice: ";
 	my ($input, $n);
 	do {
 	    $input = <>;
 	    chomp $input;
-	    if ($input =~ /^\s*(\d+)\s*$/ && $input <= $#menu) {
-		$n = $input;
+	    if ($input =~ /^\s*(\d+)\s*$/ && $input >= 1 && $input <= @menu) {
+		$n = $input - 1;
 	    } else {
 		print "Invalid choice - try again\nEnter your choice: ";
 	    }
@@ -87,5 +92,5 @@ sub player_choice {
 	elsif ($n == $prev_page) { --$page }
 	else { $choice = $n }
     }
-    return $choice;
+    return $options[$choice];
 }

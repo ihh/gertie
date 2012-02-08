@@ -274,7 +274,8 @@ sub next_term_prob {
 	    next unless $agent_ok{$self->gertie->term_owner->{$term_id}};
 	    my @tokseq = (@{$self->tokseq}, $term_id);
 	    my $mx = Gertie::Inside->new_Inside ($self->gertie, \@tokseq, $self);
-	    $term_prob{$self->gertie->sym_name->[$term_id]} = $mx->final_total / $self->final_q;
+	    my $prob = $mx->final_total / $self->final_q;
+	    if ($prob > 0) { $term_prob{$self->gertie->sym_name->[$term_id]} = $prob }
 	}
     }
     return %term_prob;
