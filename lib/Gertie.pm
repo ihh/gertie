@@ -208,6 +208,13 @@ sub index_symbols {
     # Check that we have some rules & symbols to index
     confess "No rules to index" unless @{$self->rule};
 
+    # Normalize rules
+    for my $rule (@{$self->rule}) {
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
+	$prob /= $self->outgoing_prob_by_name->{$lhs};
+	@$rule = ($lhs, $rhs1, $rhs2, $prob, $rule_index);
+    }
+
     # quick-index rules by rhs symbols
     my %by_rhs;
     for my $rule (@{$self->rule}) {
@@ -216,20 +223,20 @@ sub index_symbols {
 	push @{$by_rhs{$rhs2}}, $rule unless $rhs1 eq $rhs2;
     }
 
-    # find nonterms that have a null path to 'end'
+    # find probability that each symbol has a null path to 'end'
     my @null_q = ($self->end);
-    my %can_be_null = ($self->end => 1);
+    my %p_empty = ($self->end => 1);
     while (@null_q) {
 	my $sym = shift @null_q;
 	for my $rule (@{$by_rhs{$sym}}) {
-	    my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
-	    if ($can_be_null{$rhs1} && $can_be_null{$rhs2}) {
-		push @null_q, $lhs unless $can_be_null{$lhs};
-		$can_be_null{$lhs} = 1;
+	    my ($lhs, $rhs1, $rhs2, $rule_prob, $rule_index) = @$rule;
+	    if (defined($p_empty{$rhs1}) && defined($p_empty{$rhs2})) {
+		push @null_q, $lhs unless defined ($p_empty{$lhs});
+		$p_empty{$lhs} += $p_empty{$rhs1} * $p_empty{$rhs2} * $rule_prob;
 	    }
 	}
     }
-    warn "Nonterminals that can be null: ", join(" ",keys%can_be_null) if $self->verbose > 1;
+    warn "Nonterminals that can be null: ", join(" ",keys%p_empty) if $self->verbose > 1;
 
     # build transition graph
     my $graph = Graph::Directed->new;
@@ -239,10 +246,10 @@ sub index_symbols {
     for my $rule (@{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
 	$graph->add_edge ($lhs, $rhs1);
-	$graph->add_edge ($lhs, $rhs2) if $can_be_null{$rhs1};
+	$graph->add_edge ($lhs, $rhs2) if defined $p_empty{$rhs1};
 	if ($self->verbose > 2) {
 	    warn "Added edge $lhs->$rhs1";
-	    warn "Added edge $lhs->$rhs2" if $can_be_null{$rhs1};
+	    warn "Added edge $lhs->$rhs2" if defined $p_empty{$rhs1};
 	}
     }
 
@@ -256,13 +263,22 @@ sub index_symbols {
     $self->{'start_id'} = $self->sym_id->{$self->start};
     $self->{'end_id'} = $self->sym_id->{$self->end};
 
+    $self->{'p_empty'} = { map (($self->sym_id->{$_} => $p_empty{$_}), keys %p_empty) };
+    $self->{'p_nonempty'} = { map (defined($p_empty{$_})
+				   ? ($p_empty{$_} == 1
+				      ? ()
+				      : ($self->sym_id->{$_} => (1 - $p_empty{$_})))
+				   : ($self->sym_id->{$_} => 1),
+				   @{$self->sym_name}) };
+
     # We define "terminals" to include 'end'
     my @term = grep (!exists($self->rule_prob_by_name->{$_}), keys %{$self->symbol});
     $self->{'term_name'} = \@term;
     $self->{'term_id'} = [map ($self->sym_id->{$_}, @term)];
     $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
+    $self->{'nonterm_id'} = grep (!$self->is_term->{$_}, 0..$#{$self->sym_name});
 
-    # Ownership
+    # Terminal ownership
     $self->{'term_owner'} = {map ($_ == $self->end_id ? () : ($_ => $self->player_agent), @{$self->term_id})};
     while (my ($term_name, $owner) = each %{$self->term_owner_by_name}) {
 	my $term_id = $self->sym_id->{$term_name};
@@ -280,6 +296,7 @@ sub index_symbols {
     delete $self->{'symbols'};  # use $self->sym_name instead
     delete $self->{'rule_prob_by_name'};
     delete $self->{'term_owner_by_name'};
+    delete $self->{'outgoing_prob_by_name'};
 }
 
 sub player_agent {
@@ -287,40 +304,20 @@ sub player_agent {
     return $self->agents->[0];
 }
 
-# Normalize & index
+# Index rules
 sub index_rules {
     my ($self) = @_;
     $self->{'rule_by_lhs_rhs1'} = {};
+    $self->{'rule_by_rhs1'} = {};
     $self->{'rule_by_rhs2'} = {};
     for my $rule (@{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
-	$prob /= $self->outgoing_prob_by_name->{$lhs};
-	warn "Indexed rule: $lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
 	my ($lhs_id, $rhs1_id, $rhs2_id) = map ($self->sym_id->{$_}, $lhs, $rhs1, $rhs2);
 	push @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}}, [$rhs2_id, $prob, $rule_index];
-	push @{$self->rule_by_rhs2->{$rhs2_id}}, [$lhs_id, $rhs1_id, $prob, $rule_index];
+	push @{$self->rule_by_rhs1->{$rhs1_id}}, $rule_index;
+	push @{$self->rule_by_rhs2->{$rhs2_id}}, $rule_index;
+	warn "Indexed rule: $lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
     }
-
-    # delete indices we have no further use for
-    delete $self->{'outgoing_prob_by_name'};
-}
-
-# empty probs
-sub empty_prob {
-    my ($self) = @_;
-    my %empty = ($self->end_id => 1);
-    my @rhs2_queue = keys %empty;
-    while (@rhs2_queue) {
-	my $rhs2 = shift @rhs2_queue;
-	for my $rule (@{$self->rule_by_rhs2->{$rhs2}}) {
-	    my ($lhs, $rhs1, $rule_prob, $rule_index) = @$rule;
-	    if (exists $empty{$rhs1}) {
-		push @rhs2_queue, $lhs unless exists $empty{$lhs};
-		$empty{$lhs} += $empty{$rhs1} * $empty{$rhs2};
-	    }
-	}
-    }
-    return %empty;
 }
 
 # subroutine to print grammar

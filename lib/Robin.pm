@@ -33,7 +33,9 @@ sub play {
     my ($self) = @_;
     while (1) {
 	for my $agent (@{$self->gertie->agents}) {
-	    last unless $self->inside->continue_prob > 0;
+	    warn "[Turn: $agent]" if $self->verbose;
+	    warn $self->inside->to_string;
+	    next unless $self->inside->continue_prob > 0;
 	    my %term_prob = $self->inside->next_term_prob ($agent);
 	    my @next_term = sort { $term_prob{$a} <=> $term_prob{$b} } keys %term_prob;
 	    my @next_prob = map ($term_prob{$_}, @next_term);

@@ -34,7 +34,7 @@ my @seq = $g->tokenize (['D']);
 my $pq = $g->prefix_Inside (\@seq);
 
 my $inside = <<END;
-Prefix 1..: D=>1
+Prefix 1..: D=>1 A=>1
 Inside (1,1): end=>1
 Prefix 0..: A=>0.5
 Inside (0,0): end=>1

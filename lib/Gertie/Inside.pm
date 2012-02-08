@@ -55,8 +55,7 @@ sub fill {
     # p(i,j,sym) is stored as $p->[$j]->[$i]->{$sym}
     # This facilitates re-using DP matrices for sequences with shared prefixes
     my $p = [ map ([map ({}, 0..$_)], 0..$len) ];
-    my %empty = $gertie->empty_prob;
-    for my $i (0..$len) { $p->[$i]->[$i] = \%empty }
+    for my $i (0..$len) { $p->[$i]->[$i] = $gertie->p_empty }
     for my $i (0..$len-1) { $p->[$i+1]->[$i]->{$tokseq->[$i]} = 1 }
 
     # Inside recursion
@@ -90,8 +89,7 @@ sub fill {
     # q(i,sym) = \sum_{j=N+1}^\infty p(i,j,sym)
     #          = probability that parse tree rooted at sym will generate prefix i..length-1 (inclusive) plus at least one extra terminal
     my $q = [ map ({}, 0..$len) ];
-    for my $term_id (@{$gertie->term_id}) { $q->[$len]->{$term_id} = 1 }
-    delete $q->[$len]->{$gertie->end_id};  # a parse tree rooted at 'end' cannot generate any more terminals, so we don't consider 'end' a terminal for this purpose
+    $q->[$len] = $gertie->p_nonempty;
 
     # prefix Inside recursion
     # q(i,sym) = \sum_{lhs->rhs1 rhs1} P(lhs->rhs1 rhs2) (q(i,rhs1) + \sum_{k=i}^{length} p(i,k,rhs1) * q(k,rhs2))
