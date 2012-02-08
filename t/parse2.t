@@ -11,8 +11,9 @@ sub test {
     my ($val, $expected, $desc) = @_;
     my $n = @log + 1;
     $desc = defined($desc) ? " - $desc" : "";
-    if ($val eq $expected) { push @log, "ok $n$desc\n" }
-    else { push @log, "not ok $n$desc\nExpected:\n$expected\nGot:\n$val\n" }
+    if (!defined $val) { push @log, "not ok $n$desc\nExpected:\n$expected\nGot: undef\n" }
+    elsif ($val ne $expected) { push @log, "not ok $n$desc\nExpected:\n$expected\nGot:\n$val\n" }
+    else { push @log, "ok $n$desc\n" }
 }
 
 sub test_expr {
@@ -63,6 +64,17 @@ sub balance_test {
 
 balance_test ("simulation", %sim);
 balance_test ("stochastic traceback", %tb);
+
+
+my $g2 = Gertie->new_from_string ('A->D E F;A->D G;A->D 2;');
+
+my @seq2 = $g2->tokenize (['D']);
+my $pq2 = $g2->prefix_Inside (\@seq2);
+my %tp = $pq2->next_term_prob;
+
+test ($pq2->continue_prob, .5, "Probability of continuation");
+test ($tp{'E'}, .5, "Probability of next terminal (E)");
+test ($tp{'G'}, .5, "Probability of next terminal (G)");
 
 dump_log();
 

@@ -123,6 +123,32 @@ sub fill {
     $self->{'q'} = $q;
 }
 
+sub final_p {
+    my ($self) = @_;
+    my $p = $self->p;
+    my $len = $#$p;
+    my $cell = $p->[$len]->[0];
+    my $start = $self->gertie->start_id;
+    return defined($cell->{$start}) ? $cell->{$start} : 0;
+}
+
+sub final_q {
+    my ($self) = @_;
+    my $cell = $self->q->[0];
+    my $start = $self->gertie->start_id;
+    return defined($cell->{$start}) ? $cell->{$start} : 0;
+}
+
+sub final_total {
+    my ($self) = @_;
+    return $self->final_p + $self->final_q;
+}
+
+sub continue_prob {
+    my ($self) = @_;
+    return $self->final_q / $self->final_total;
+}
+
 sub to_string {
     my ($self) = @_;
     my $gertie = $self->gertie;
@@ -155,8 +181,8 @@ sub traceback {
     my $p = $self->p;
     my $q = $self->q;
     my $len = $#$p;
-    my $q_prob = $q->[0]->{$gertie->start_id};
-    my $p_prob = $p->[$len]->[0]->{$gertie->start_id};
+    my $q_prob = $self->final_q;
+    my $p_prob = $self->final_p;
     my $is_complete = Gertie::sample ([defined($q_prob) ? $q_prob : 0,
 				       defined($p_prob) ? $p_prob : 0]);
     my $parse_tree =
@@ -234,6 +260,26 @@ sub traceback_q {
 	       $gertie->simulate_Chomsky ($rhs2))
 	    : ($self->traceback_p ($i, $k, $rhs1),
 	       $self->traceback_q ($k, $rhs2))];
+}
+
+# Return probability distribution over next terminal, by exhaustive enumeration
+# Caller can optionally select terminals owned by just one agent
+sub next_term_prob {
+    my ($self, @agents) = @_;
+    @agents = @{$self->gertie->agents} unless @agents;
+    my %agent_ok = map (($_ => 1), @agents);
+    my $continue_prob = $self->continue_prob;
+    my %term_prob;
+    if ($self->final_q > 0) {
+	for my $term_id (@{$self->gertie->term_id}) {
+	    next if $term_id == $self->gertie->end_id;
+	    next unless $agent_ok{$self->gertie->term_owner->{$term_id}};
+	    my @tokseq = (@{$self->tokseq}, $term_id);
+	    my $mx = Gertie::Inside->new_Inside ($self->gertie, \@tokseq, $self);
+	    $term_prob{$self->gertie->sym_name->[$term_id]} = $mx->final_total / $self->final_q;
+	}
+    }
+    return %term_prob;
 }
 
 1;

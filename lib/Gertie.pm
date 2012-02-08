@@ -26,6 +26,8 @@ sub new_gertie {
 			       'max_inside_len' => undef,
 			       'rule_prob_by_name' => {},
 			       'outgoing_prob_by_name' => {},
+			       'term_owner_by_name' => {},
+			       'agents' => [qw(p c)],  # first of these is the human player
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
@@ -86,7 +88,7 @@ sub parse_line {
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*)\s*($prob_regex)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
 	my ($lhs, $rhs, $rhs1, $rhs_crap, $prob) = ($1, $2, $3, $4, $5);
 	# Convert "A->B C D E" into "A -> B.C.D E;  B.C.D -> B.C D;  B.C -> B C"
-	$rhs =~ s/^\s*(.*?)\s*/$1/;
+	$rhs =~ s/^\s*(.*?)\s*$/$1/;
 	my @rhs = split /\s+/, $rhs;
 	confess "Parse error" unless @rhs >= 2;
 	@rhs = $self->process_quantifiers (@rhs);
@@ -95,6 +97,12 @@ sub parse_line {
 	my ($lhs, $all_rhs) = ($1, $2);
 	my @rhs = split /\|/, $all_rhs;
 	for my $rhs (@rhs) { $self->parse_line ("$lhs -> $rhs") }
+    } elsif (/^\s*\@(\w+)(\s+($lhs_regex)*)\s*;?$/) {  # @agent_name symbol1 symbol2 symbol3...
+	my ($owner, $symbols, $symbols_crap) = ($1, $2, $3);
+	confess "Agent '$owner' unknown" unless grep ($_ eq $owner, @{$self->agents});
+	$symbols =~ s/^\s*(.*?)\s*$/$1/;
+	my @symbols = split /\s+/, $symbols;
+	for my $sym (@symbols) { $self->term_owner_by_name->{$sym} = $owner }
     } else {
 	warn "Unrecognized line: ", $_;
     }
@@ -230,8 +238,12 @@ sub index_symbols {
     }
     for my $rule (@{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
-	$graph->add_edge ($lhs, $rhs1) if $can_be_null{$rhs2};
+	$graph->add_edge ($lhs, $rhs1);
 	$graph->add_edge ($lhs, $rhs2) if $can_be_null{$rhs1};
+	if ($self->verbose > 2) {
+	    warn "Added edge $lhs->$rhs1";
+	    warn "Added edge $lhs->$rhs2" if $can_be_null{$rhs1};
+	}
     }
 
     # do toposort
@@ -250,12 +262,25 @@ sub index_symbols {
     $self->{'term_id'} = [map ($self->sym_id->{$_}, @term)];
     $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
 
-    warn "Symbols: (@{$self->sym_name})" if $self->verbose;
-    warn "Terminals: (@{$self->term_name})" if $self->verbose;
+    # Ownership
+    my $player_agent = $self->agents->[0];
+    $self->{'term_owner'} = {map (($_ => $player_agent), @{$self->term_id})};
+    while (my ($term_name, $owner) = each %{$self->term_owner_by_name}) {
+	my $term_id = $self->term_id->{$term_name};
+	confess "Terminal $term_name not in grammar" unless defined $term_id;
+	$self->{'term_owner'}->{$term_id} = $owner;
+    }
+
+    # Log
+    if ($self->verbose) {
+	warn "Symbols: (@{$self->sym_name})";
+	warn "Terminals: (@{$self->term_name})";
+    }
 
     # delete indices we have no further use for
     delete $self->{'symbols'};  # use $self->sym_name instead
     delete $self->{'rule_prob_by_name'};
+    delete $self->{'term_owner_by_name'};
 }
 
 # Normalize & index
