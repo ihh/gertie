@@ -27,7 +27,7 @@ sub new_gertie {
 			       'rule_prob_by_name' => {},
 			       'outgoing_prob_by_name' => {},
 			       'term_owner_by_name' => {},
-			       'agents' => [qw(p c)],  # first of these is the human player
+			       'agents' => [qw(p)],  # first agent is the human player
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
@@ -97,9 +97,9 @@ sub parse_line {
 	my ($lhs, $all_rhs) = ($1, $2);
 	my @rhs = split /\|/, $all_rhs;
 	for my $rhs (@rhs) { $self->parse_line ("$lhs -> $rhs") }
-    } elsif (/^\s*\@(\w+)(\s+($lhs_regex)*)\s*;?$/) {  # @agent_name symbol1 symbol2 symbol3...
+    } elsif (/^\s*\@(\w+)((\s+$lhs_regex)*)\s*;?$/) {  # @agent_name symbol1 symbol2 symbol3...
 	my ($owner, $symbols, $symbols_crap) = ($1, $2, $3);
-	confess "Agent '$owner' unknown" unless grep ($_ eq $owner, @{$self->agents});
+	push @{$self->{agents}}, $owner unless grep ($_ eq $owner, @{$self->agents});
 	$symbols =~ s/^\s*(.*?)\s*$/$1/;
 	my @symbols = split /\s+/, $symbols;
 	for my $sym (@symbols) { $self->term_owner_by_name->{$sym} = $owner }
@@ -263,10 +263,9 @@ sub index_symbols {
     $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
 
     # Ownership
-    my $player_agent = $self->agents->[0];
-    $self->{'term_owner'} = {map (($_ => $player_agent), @{$self->term_id})};
+    $self->{'term_owner'} = {map ($_ == $self->end_id ? () : ($_ => $self->player_agent), @{$self->term_id})};
     while (my ($term_name, $owner) = each %{$self->term_owner_by_name}) {
-	my $term_id = $self->term_id->{$term_name};
+	my $term_id = $self->sym_id->{$term_name};
 	confess "Terminal $term_name not in grammar" unless defined $term_id;
 	$self->{'term_owner'}->{$term_id} = $owner;
     }
@@ -281,6 +280,11 @@ sub index_symbols {
     delete $self->{'symbols'};  # use $self->sym_name instead
     delete $self->{'rule_prob_by_name'};
     delete $self->{'term_owner_by_name'};
+}
+
+sub player_agent {
+    my ($self) = @_;
+    return $self->agents->[0];
 }
 
 # Normalize & index
@@ -323,8 +327,17 @@ sub empty_prob {
 sub to_string {
     my ($self) = @_;
     my @text;
+    if (@{$self->agents} > 1) {
+	for my $agent (@{$self->agents}) {
+	    my @term = map ($self->term_name->[$_],
+			    grep ($self->term_id->[$_] != $self->end_id && $self->term_owner->{$self->term_id->[$_]} eq $agent,
+				  0..$#{$self->term_id}));
+	    push @text, "\@$agent @term;\n";
+	}
+    }
     for my $lhs (sort @{$self->sym_name}) {
 	next if $lhs =~ /\./;  # don't print rules added by Chomsky-fication
+	next if $lhs eq $self->end;  # don't mess around with 'end' nonterminal
 	my $lhs_id = $self->sym_id->{$lhs};
 	my @rhs1 = map ($self->sym_name->[$_], keys %{$self->rule_by_lhs_rhs1->{$lhs_id}});
 	for my $rhs1 (sort @rhs1) {

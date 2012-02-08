@@ -21,7 +21,7 @@ use Graph::Directed;
 sub new_Inside {
     my ($class, $gertie, $tokseq, $prev_Inside) = @_;
     my $self = AutoHash->new ( 'gertie' => $gertie,
-			       'tokseq' => $tokseq,
+			       'tokseq' => [@$tokseq],
 			       'prev' => $prev_Inside );
     bless $self, $class;
     $self->fill();
