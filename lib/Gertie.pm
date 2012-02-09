@@ -381,7 +381,11 @@ sub to_string {
 				  grep ($self->term_id->[$_] != $self->end_id
 					&& $self->term_owner->{$self->term_id->[$_]} eq $agent,
 					0..$#{$self->term_id})));
-	    push @text, "\@$agent @term;\n" if @term;
+	    if (@term) {
+		push @text, "\@$agent @term;\n";
+	    } elsif ($agent ne $self->player_agent) {
+		push @text, "\@$agent;\n";
+	    }
 	}
     }
     for my $lhs (sort @{$self->sym_name}) {
