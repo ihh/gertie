@@ -37,7 +37,7 @@ sub play {
 	    warn "Inside matrix:\n", $self->inside->to_string if $self->verbose > 9;
 	    next unless $self->inside->continue_prob > 0;
 	    my %term_prob = $self->inside->next_term_prob ($agent);
-	    my @next_term = sort { $term_prob{$a} <=> $term_prob{$b} } keys %term_prob;
+	    my @next_term = sort { $term_prob{$b} <=> $term_prob{$a} } keys %term_prob;
 	    my @next_prob = map ($term_prob{$_}, @next_term);
 	    unless (@next_term) {
 		warn "[No available move for $agent]" if $self->verbose;
