@@ -295,7 +295,8 @@ sub next_term_prob {
 	    my $mx = Gertie::Inside->new_Inside ($self->gertie, \@tokseq, $self);
 	    my $prob = $mx->final_total / $self->final_q;
 	    if ($prob > 0) { $term_prob{$self->gertie->sym_name->[$term_id]} = $prob }
-	    warn $progress->report ("\%B $term_name ($prob)\n", $n) if $self->gertie->verbose;
+	    # Progress bar
+	    warn $progress->report ("\%B $term_name (".sprintf("% 10f",$prob).") \%L\n", $n) if $self->gertie->verbose;
 	}
     }
     return %term_prob;
