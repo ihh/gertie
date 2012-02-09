@@ -63,11 +63,15 @@ sub play {
     $self->inside ($self->gertie->prefix_Inside([]));  # initialize empty Inside matrix
     $self->inside->verbose ($self->verbose);  # make the Inside matrix as verbose as we are, for log tidiness
     $self->{'turns'} = { map (($_ => 0), @{$self->gertie->agents}) };
+
+    my $narrative_text = $self->narrative_text;
+
     my $log_color = $self->log_color;
     my $reset_nl = color('reset') . "\n";
     my @begin_log = ($log_color, "--- BEGIN DEBUG LOG", $reset_nl);
     my @end_log = ($log_color, "--- END DEBUG LOG", $reset_nl);
     print @begin_log if $self->verbose;
+
   GAMELOOP: while (1) {
     ROUNDROBIN: for my $agent (@{$self->gertie->agents}) {
 	# status/log messages
@@ -89,10 +93,9 @@ sub play {
 
 	# get next terminal from appropriate agent
 	my $next_term;
-	if ($agent eq $self->gertie->player_agent) {
 	    print @end_log if $self->verbose;
+	if ($agent eq $self->gertie->player_agent) {
 	    $next_term = $self->player_choice (@next_term);
-	    print @begin_log if $self->verbose;
 	} else {
 	    $next_term = Gertie::sample (\@next_prob, \@next_term);
 	}
@@ -101,8 +104,18 @@ sub play {
 	++$self->turns->{$agent};
 	push @{$self->seq}, $next_term;
 	push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
-	print $log_color, "Terminal: $next_term", $reset_nl if $self->verbose;
-	push @{$self->updates}, $next_term;
+
+	# print narrative text
+	print
+	    $self->narrative_color,
+	    (defined($narrative_text) && defined($narrative_text->{$next_term})
+	     ? $narrative_text->{$next_term}
+	     : "$next_term\n");
+
+	if ($self->verbose) {
+	    print @begin_log;
+	    print $log_color, "Terminal: $next_term", $reset_nl;
+	}
 
 	# update Inside matrix
 	my $inside = $self->gertie->prefix_Inside ($self->tokseq, $self->inside);
@@ -142,16 +155,9 @@ sub player_choice {
 
 	# print the menu
 #	if (@options > $self->options_per_page) { print "[Page ", $page + 1, "]\n" }
-	my @updates = map (defined($narrative_text) && defined($narrative_text->{$_})
-			   ? $narrative_text->{$_}
-			   : "$_\n",
-			   @{$self->updates});
 	print
 	    "\n",
-	    $narrative_color,
-	    @updates,
 	    $meta_color,
-	    (@updates ? "\n" : ""),
 	    "Your choices:\n",
 	    map ((' ', $choice_selector_color, $_ + 1, '.', color('reset'), ' ',
 		  $menu_color[$_], $menu[$_],
@@ -160,7 +166,6 @@ sub player_choice {
 	    $meta_color,
 	    "\nEnter your choice: ",
 	    $input_color;
-	@{$self->updates} = ();
 
 	# get user input
 	my ($input, $n);
@@ -172,12 +177,12 @@ sub player_choice {
 	    my $quoted_input = quotemeta($input);
 	    if ($input =~ /^\d+/ && $input >= 1 && $input <= @menu) {
 		$n = $input - 1;
-		print $menu_color[$n], $menu[$n], color('reset'), "\n";
+		print $menu_color[$n], $menu[$n], color('reset'), "\n\n";
 	    } elsif (my @match = grep ($menu[$_] =~ /$quoted_input/i, 0..$#menu)) {
 		$n = shift @match;
 		print
 		    $meta_color, "(Choice ", $n+1, ")", color('reset'), " ",
-		    $menu_color[$n], $menu[$n], color('reset'), "\n";
+		    $menu_color[$n], $menu[$n], color('reset'), "\n\n";
 	    } else {
 		print $meta_color, "Invalid choice - try again\nEnter your choice: ", $input_color;
 	    }
@@ -188,7 +193,6 @@ sub player_choice {
 	elsif ($n == $prev_page) { --$page }
 	elsif ($n == $review) {
 	    print
-		"\n",
 		$narrative_color,
 		$self->story_so_far;
 	}
