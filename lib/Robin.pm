@@ -189,9 +189,9 @@ sub player_choice {
 
 	# add extra pseudo-options
 	my ($next_page, $prev_page, $review) = (-1, -1, -1);
+	if ($self->player_turns > 0) { $review = add_option (\@menu_color, $meta_color, \@menu, "(review transcript)") }
 	if ($max < $#options) { $next_page = add_option (\@menu_color, $meta_color, \@menu, "(more options)") }
 	if ($page > 0) { $prev_page = add_option (\@menu_color, $meta_color, \@menu, "(previous options)") }
-	if ($self->player_turns > 0) { $review = add_option (\@menu_color, $meta_color, \@menu, "(review transcript)") }
 
 	# variables determining whether to print the menu
 	my $display_choices = 1;
@@ -234,7 +234,7 @@ sub player_choice {
 
 	    if ($input =~ /^\d+/ && $input >= 1 && $input <= @menu) {
 		$n = $input - 1;
-		print $menu_color[$n], $menu[$n], color('reset'), "\n\n";
+		print $menu_color[$n], $menu[$n], color('reset'), "\n";
 	    } elsif (my @match = length($input) ? grep ($menu[$_] =~ /$quoted_input/i, 0..$#menu) : ()) {
 		if (@match == 1) {
 		    ($n) = @match;
@@ -260,11 +260,12 @@ sub player_choice {
 	if ($n == $next_page) { ++$page }
 	elsif ($n == $prev_page) { --$page }
 	elsif ($n == $review) {
-	    print
-		$narrative_color,
-		$self->story_so_far;
+	    print "\n", $narrative_color, $self->story_so_far;
 	}
-	else { $choice = $n + $min }
+	else {
+	    $choice = $n + $min;
+	    print "\n";
+	}
     }
     return $options[$choice];
 }
