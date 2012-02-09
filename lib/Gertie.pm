@@ -28,6 +28,12 @@ sub new_gertie {
 			       'outgoing_prob_by_name' => {},
 			       'term_owner_by_name' => {},
 			       'agents' => [qw(p)],  # first agent is the human player
+
+			       'agent_regex' => '[A-Za-z_]\w*\b',
+			       'lhs_regex' => '[A-Za-z_][\w@]*\b',
+			       'rhs_regex' => '[A-Za-z_][\w@]*\b([\?\*\+]?|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\})',
+			       'prob_regex' => '[\d\.]*',
+
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
@@ -78,33 +84,57 @@ sub parse_line {
     $_ = $line;
     return unless /\S/;  # ignore blank lines
     return if /^\s*\/\//;  # ignore C++-style comments ("// ...")
-    my $lhs_regex = '[A-Za-z_]\w*\b';
-    my $rhs_regex = $lhs_regex . '([\?\*\+]?|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\})';
-    my $prob_regex = '[\d\.]*';
+
+    my $agent_regex = $self->agent_regex;
+    my $lhs_regex = $self->lhs_regex;
+    my $rhs_regex = $self->rhs_regex;
+    my $prob_regex = $self->prob_regex;
+
     if (/^\s*($lhs_regex)\s*\->\s*($rhs_regex)\s*(|$rhs_regex)\s*($prob_regex)\s*;?\s*$/) {  # Transition (A->B) or Chomsky-form rule (A->B C) with optional probability
 	my ($lhs, $rhs1, $rhs1_crap, $rhs2, $rhs2_crap, $prob) = ($1, $2, $3, $4, $5, $6);
 	($rhs1, $rhs2) = $self->process_quantifiers ($rhs1, $rhs2);
-	$self->add_rule ($lhs, $rhs1, $rhs2, $prob);
+	$self->foreach_agent ([$lhs, $rhs1, $rhs2],
+			      sub { $self->add_rule (@_, $prob) });
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*)\s*($prob_regex)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
 	my ($lhs, $rhs, $rhs1, $rhs_crap, $prob) = ($1, $2, $3, $4, $5);
 	# Convert "A->B C D E" into "A -> B.C.D E;  B.C.D -> B.C D;  B.C -> B C"
 	$rhs =~ s/^\s*(.*?)\s*$/$1/;
 	my @rhs = split /\s+/, $rhs;
 	confess "Parse error" unless @rhs >= 2;
-	@rhs = $self->process_quantifiers (@rhs);
-	$self->add_non_Chomsky_rule ($lhs, \@rhs, $prob);
+	$self->foreach_agent ([$lhs, @rhs],
+			      sub { my ($lhs, @rhs) = @_;
+				    @rhs = $self->process_quantifiers (@rhs);
+				    $self->add_non_Chomsky_rule ($lhs, \@rhs, $prob) });
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex\b)*\s*($prob_regex)(\s*\|(\s*$rhs_regex)*\s*($prob_regex))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
 	my ($lhs, $all_rhs) = ($1, $2);
 	my @rhs = split /\|/, $all_rhs;
 	for my $rhs (@rhs) { $self->parse_line ("$lhs -> $rhs") }
-    } elsif (/^\s*\@(\w+)((\s+$lhs_regex)*)\s*;?$/) {  # @agent_name symbol1 symbol2 symbol3...
+    } elsif (/^\s*\@($agent_regex)((\s+$lhs_regex)*)\s*;?$/) {  # @agent_name symbol1 symbol2 symbol3...
 	my ($owner, $symbols, $symbols_crap) = ($1, $2, $3);
-	push @{$self->{agents}}, $owner unless grep ($_ eq $owner, @{$self->agents});
+	push @{$self->agents}, $owner unless grep ($_ eq $owner, @{$self->agents});
 	$symbols =~ s/^\s*(.*?)\s*$/$1/;
 	my @symbols = split /\s+/, $symbols;
 	for my $sym (@symbols) { $self->term_owner_by_name->{$sym} = $owner }
     } else {
 	warn "Unrecognized line: ", $_;
+    }
+}
+
+sub foreach_agent {
+    my ($self, $sym_list, $agent_sub) = @_;
+    if (grep (/\@\d+$/, @$sym_list)) {
+	for (my $a1 = 0; $a1 < @{$self->agents}; ++$a1) {
+	    my @sym = @$sym_list;
+	    for (my $a_delta = 0; $a_delta < @{$self->agents}; ++$a_delta) {
+		my $agent_index = ($a1 + $a_delta) % (@{$self->agents} + 0);
+		my $agent = $self->agents->[$agent_index];
+		my $num = $a_delta + 1;
+		grep (s/\@$num$/\@$agent/, @sym);
+	    }
+	    &$agent_sub (@sym);
+	}
+    } else {
+	&$agent_sub (@$sym_list);
     }
 }
 
@@ -272,18 +302,38 @@ sub index_symbols {
 				   @{$self->sym_name}) };
 
     # We define "terminals" to include 'end'
-    my @term = grep (!exists($self->rule_prob_by_name->{$_}), keys %{$self->symbol});
+    my @term = grep (!exists($self->rule_prob_by_name->{$_}), sort keys %{$self->symbol});
     $self->{'term_name'} = \@term;
     $self->{'term_id'} = [map ($self->sym_id->{$_}, @term)];
     $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
     $self->{'nonterm_id'} = grep (!$self->is_term->{$_}, 0..$#{$self->sym_name});
 
     # Terminal ownership
-    $self->{'term_owner'} = {map ($_ == $self->end_id ? () : ($_ => $self->player_agent), @{$self->term_id})};
+    $self->{'term_owner'} = {};
     while (my ($term_name, $owner) = each %{$self->term_owner_by_name}) {
 	my $term_id = $self->sym_id->{$term_name};
 	confess "Terminal $term_name not in grammar" unless defined $term_id;
 	$self->{'term_owner'}->{$term_id} = $owner;
+    }
+    my $agent_regex = $self->agent_regex;
+    my %is_agent = map (($_ => 1), @{$self->agents});
+    for my $term_num (0..$#{$self->term_id}) {
+	my $term_id = $self->term_id->[$term_num];
+	if ($term_id != $self->end_id) {
+	    my $term_name = $self->term_name->[$term_num];
+	    if ($term_name =~ /\@($agent_regex)/ && $is_agent{$1}) {
+		my $agent = $1;
+		if (defined $self->term_owner->{$term_id}) {
+		    if ($self->term_owner->{$term_id} ne $agent) {
+			confess "Tried to override automatic $agent-ownership of $term_name" if $self->verbose;
+		    }
+		} else {
+		    $self->term_owner->{$term_id} = $agent;
+		}
+	    } elsif (!defined $self->term_owner->{$term_id}) {
+		$self->term_owner->{$term_id} = $self->player_agent;
+	    }
+	}
     }
 
     # Log

@@ -30,9 +30,9 @@ END
 test ($gs, $gt, "Canonical form of grammar with multiple RHS separated by '|'");
 
 
-my $h = Gertie->new_from_string ('A->B+ C{,3} D{,4} E{1,4} F* G?');
-my $hs = $h->to_string;
-my $ht = <<END;
+my $g2 = Gertie->new_from_string ('A->B+ C{,3} D{,4} E{1,4} F* G?');
+my $g2s = $g2->to_string;
+my $g2t = <<END;
 A -> B+ C{,3} D{,4} E{1,4} F* G?;
 B+ -> B B+  0.5;
 B+ -> B  0.5;
@@ -54,7 +54,7 @@ F* -> end  0.5;
 G? -> G  0.5;
 G? -> end  0.5;
 END
-test ($hs, $ht, "Canonical form of grammar with quantifiers");
+test ($g2s, $g2t, "Canonical form of grammar with quantifiers");
 
 
 dump_log();
