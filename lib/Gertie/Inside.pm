@@ -17,13 +17,16 @@ use Symbol qw(gensym);
 # specific imports
 use Graph::Directed;
 use Time::Progress;
+use Term::ANSIColor;
 
 # constructor
 sub new_Inside {
-    my ($class, $gertie, $tokseq, $prev_Inside) = @_;
+    my ($class, $gertie, $tokseq, $prev_Inside, @args) = @_;
     my $self = AutoHash->new ( 'gertie' => $gertie,
 			       'tokseq' => [@$tokseq],
-			       'prev' => $prev_Inside );
+			       'prev' => $prev_Inside,
+			       'verbose' => defined($prev_Inside) ? $prev_Inside->verbose : $gertie->verbose,
+			       @args );
     bless $self, $class;
 
     # Length of shared re-usable prefix
@@ -114,13 +117,13 @@ sub fill {
 			if (defined (my $rhs1_prob = $p->[$k]->[$i]->{$rhs1})
 			    && defined (my $rhs2_prob = $q->[$k]->{$rhs2})) {
 			    $q->[$i]->{$lhs} += $rule_prob * $rhs1_prob * $rhs2_prob;
-			    warn "q($i,",$gertie->sym_name->[$lhs],") += p($i,$k,",$gertie->sym_name->[$rhs1],")(=$rhs1_prob) * q($k,",$gertie->sym_name->[$rhs2],")(=$rhs2_prob) * P(rule)(=$rule_prob)" if $gertie->verbose > 1;
+			    warn "q($i,",$gertie->sym_name->[$lhs],") += p($i,$k,",$gertie->sym_name->[$rhs1],")(=$rhs1_prob) * q($k,",$gertie->sym_name->[$rhs2],")(=$rhs2_prob) * P(rule)(=$rule_prob)" if $self->verbose > 10;
 			}
 		    }
 		    if (defined $q->[$i]->{$rhs1}) {
 			my $rhs1_prob = $q->[$i]->{$rhs1};
 			$q->[$i]->{$lhs} += $rule_prob * $rhs1_prob;
-			warn "q($i,",$gertie->sym_name->[$lhs],") += q($i,",$gertie->sym_name->[$rhs1],")(=$rhs1_prob) * P(rule)(=$rule_prob)" if $gertie->verbose > 1;
+			warn "q($i,",$gertie->sym_name->[$lhs],") += q($i,",$gertie->sym_name->[$rhs1],")(=$rhs1_prob) * P(rule)(=$rule_prob)" if $self->verbose > 10;
 		    }
 		}
 	    }
@@ -296,7 +299,11 @@ sub next_term_prob {
 	    my $prob = $mx->final_total / $self->final_q;
 	    if ($prob > 0) { $term_prob{$self->gertie->sym_name->[$term_id]} = $prob }
 	    # Progress bar
-	    warn $progress->report ("\%B (".sprintf("% 10f",$prob).") \%L $term_name\n", $n) if $self->gertie->verbose;
+	    print
+		color('red'),
+		$progress->report ("\%B (".sprintf("% 10f",$prob).") \%L $term_name\n", $n),
+		color('reset')
+		if $self->verbose;
 	}
     }
     return %term_prob;

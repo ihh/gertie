@@ -1,5 +1,6 @@
 package Robin;
 use Moose;
+use Term::ANSIColor;
 use AutoHash;
 use Gertie;
 use Gertie::Inside;
@@ -14,11 +15,12 @@ sub new_robin {
     my $self = AutoHash->new ( 'gertie' => $gertie,
 			       'seq' => [],
 			       'tokseq' => [],
-			       'inside' => $gertie->prefix_Inside([]),
+			       'inside' => undef,
 			       'choice_text' => undef,
 			       'narrative_text' => undef,
 			       'options_per_page' => 3,
 			       'updates' => [],
+			       'turns' => {},
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
@@ -29,9 +31,11 @@ sub new_from_file {
     my ($class, $filename, @args) = @_;
     my $gertie = Gertie->new_from_file ($filename);
     my $self = $class->new_robin ($gertie, @args);
+    # quick hack to load choice/narrative files if they have the same filename
     my ($choice_file, $narrative_file) = map ("$filename.$_", qw(choice narrative));
     $self->load_choice_text ($choice_file) if -e $choice_file;
     $self->load_narrative_text ($narrative_file) if -e $narrative_file;
+    # return
     return $self;
 }
 
@@ -48,47 +52,55 @@ sub load_narrative_text {
 # play method
 sub play {
     my ($self) = @_;
+    $self->inside ($self->gertie->prefix_Inside([]));  # initialize empty Inside matrix
+    $self->inside->verbose ($self->verbose);  # make the Inside matrix as verbose as we are, for log tidiness
+    $self->{'turns'} = { map (($_ => 0), @{$self->gertie->agents}) };
+    my $log_color = color('red on_black');
+    my $reset_nl = color('reset') . "\n";
+    my @begin_log = ($log_color, "--- BEGIN DEBUG LOG", $reset_nl);
+    my @end_log = ($log_color, "--- END DEBUG LOG", $reset_nl);
+    print @begin_log if $self->verbose;
   GAMELOOP: while (1) {
     ROUNDROBIN: for my $agent (@{$self->gertie->agents}) {
-	    # log/debug
-	    warn "[Turn: $agent]" if $self->verbose;
-	    warn "Sequence so far: (@{$self->seq})" if $self->verbose;
-	    warn "Inside matrix:\n", $self->inside->to_string if $self->verbose > 9;
-
-	    # can we continue/play this agent?
-	    last GAMELOOP unless $self->inside->continue_prob > 0;
-	    my %term_prob = $self->inside->next_term_prob ($agent);
-	    my @next_term = sort { $term_prob{$b} <=> $term_prob{$a} } keys %term_prob;
-	    my @next_prob = map ($term_prob{$_}, @next_term);
-	    unless (@next_term) {
-		warn "[No available move for $agent]" if $self->verbose;
-		next ROUNDROBIN;
-	    }
-
-	    # get next terminal from appropriate agent
-	    my $next_term;
-	    if ($agent eq $self->gertie->player_agent) {
-		$next_term = $self->player_choice (@next_term);
-	    } else {
-		$next_term = Gertie::sample (\@next_prob, \@next_term);
-	    }
-
-	    # store terminal
-	    push @{$self->seq}, $next_term;
-	    push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
-	    push @{$self->updates}, $next_term;
-	    warn "Terminal: $next_term" if $self->verbose > 20;
-
-	    # update inside matrix
-	    my $inside = $self->gertie->prefix_Inside ($self->tokseq, $self->inside);
-	    $self->inside ($inside);
+	# status/log messages
+	if ($self->verbose) {
+	    print $log_color, "Turn: $agent", $reset_nl;
+	    print $log_color, "Sequence: (@{$self->seq})", $reset_nl;
+	    print $log_color, "Inside matrix:\n", $self->inside->to_string, $reset_nl if $self->verbose > 9;
 	}
-    }
-}
 
-sub print_term {
-    my ($self, $term) = @_;
-    print $term, "\n";
+	# can we continue/play this agent?
+	last GAMELOOP unless $self->inside->continue_prob > 0;
+	my %term_prob = $self->inside->next_term_prob ($agent);
+	my @next_term = sort { $term_prob{$b} <=> $term_prob{$a} } keys %term_prob;
+	my @next_prob = map ($term_prob{$_}, @next_term);
+	unless (@next_term) {
+	    print $log_color, "No available move for $agent", $reset_nl if $self->verbose;
+	    next ROUNDROBIN;
+	}
+
+	# get next terminal from appropriate agent
+	my $next_term;
+	if ($agent eq $self->gertie->player_agent) {
+	    print @end_log if $self->verbose;
+	    $next_term = $self->player_choice (@next_term);
+	    print @begin_log if $self->verbose;
+	} else {
+	    $next_term = Gertie::sample (\@next_prob, \@next_term);
+	}
+
+	# record the turn
+	++$self->turns->{$agent};
+	push @{$self->seq}, $next_term;
+	push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
+	push @{$self->updates}, $next_term;
+	print $log_color, "Terminal: $next_term", $reset_nl if $self->verbose;
+
+	# update Inside matrix
+	my $inside = $self->gertie->prefix_Inside ($self->tokseq, $self->inside);
+	$self->inside ($inside);
+    }
+  }
 }
 
 sub player_choice {
@@ -98,19 +110,25 @@ sub player_choice {
     my $choice;
     my $choice_text = $self->choice_text;
     my $narrative_text = $self->narrative_text;
+    my $input_color = color('white');
+    my $choice_selector_color = color('yellow');
+    my $narrative_color = color('cyan');
+    my $choice_color = color('white on_blue');
+    my $meta_color = color('yellow');
     while (!defined $choice) {
 	# build menu
 	my $min = $page * $self->options_per_page;
 	my $max = $min + $self->options_per_page - 1;
 	$max = $#options if $max > $#options;
 	my @menu = @options[$min..$max];
+	my @menu_color = map ($choice_color, @menu);
 	if (defined $choice_text) { @menu = map (defined($choice_text->{$_}) ? $choice_text->{$_} : $_, @menu) }
 
 	# add extra pseudo-options
 	my ($next_page, $prev_page, $review) = (-1, -1, -1);
-	if ($max < $#options) { push @menu, "More options"; $next_page = $#menu }
-	if ($page > 0) { push @menu, "Previous options"; $prev_page = $#menu }
-	if (@{$self->seq} > 0) { push @menu, "Review the story so far"; $review = $#menu }
+	if ($max < $#options) { $next_page = add_option (\@menu_color, $meta_color, \@menu, "(more options)") }
+	if ($page > 0) { $prev_page = add_option (\@menu_color, $meta_color, \@menu, "(previous options)") }
+	if ($self->player_turns > 0) { $review = add_option (\@menu_color, $meta_color, \@menu, "(review transcript)") }
 
 	# print the menu
 #	if (@options > $self->options_per_page) { print "[Page ", $page + 1, "]\n" }
@@ -119,10 +137,19 @@ sub player_choice {
 			   : "$_\n",
 			   @{$self->updates});
 	print
+	    "\n",
+	    $narrative_color,
 	    @updates,
+	    $meta_color,
+	    (@updates ? "\n" : ""),
 	    "Your choices:\n",
-	    map (" ".($_+1).".  $menu[$_]\n", 0..$#menu),
-	    "Enter your choice: ";
+	    map ((' ', $choice_selector_color, $_ + 1, '.', color('reset'), ' ',
+		  $menu_color[$_], $menu[$_],
+		  color('reset'), "\n"),
+		 0..$#menu),
+	    $meta_color,
+	    "\nEnter your choice: ",
+	    $input_color;
 	@{$self->updates} = ();
 
 	# get user input
@@ -130,20 +157,41 @@ sub player_choice {
 	do {
 	    $input = <>;
 	    chomp $input;
-	    if ($input =~ /^\s*(\d+)\s*$/ && $input >= 1 && $input <= @menu) {
+	    $input =~ s/^\s*//;
+	    $input =~ s/\s*$//;
+	    my $quoted_input = quotemeta($input);
+	    if ($input =~ /^\d+/ && $input >= 1 && $input <= @menu) {
 		$n = $input - 1;
+		print $menu_color[$n], $menu[$n], color('reset'), "\n";
+	    } elsif (my @match = grep (/$quoted_input/i, @menu)) {
+		$n = shift @match;
+		print
+		    $meta_color, "(Choice ", $n+1, ")", color('reset'), " ",
+		    $menu_color[$n], $menu[$n], color('reset'), "\n";
 	    } else {
-		print "Invalid choice - try again\nEnter your choice: ";
+		print $meta_color, "Invalid choice - try again\nEnter your choice: ", $input_color;
 	    }
 	} while (!defined $n);
 
 	# decode user input
 	if ($n == $next_page) { ++$page }
 	elsif ($n == $prev_page) { --$page }
-	elsif ($n == $review) { print "\n--- From the Beginning:\n", $self->story_so_far, "--- That's it, so far.\n\n" }
+	elsif ($n == $review) {
+	    print
+		"\n",
+		$narrative_color,
+		$self->story_so_far;
+	}
 	else { $choice = $n + $min }
     }
     return $options[$choice];
+}
+
+sub add_option {
+    my ($menu_color_ref, $color, $menu_ref, $option) = @_;
+    push @$menu_color_ref, $color;
+    push @$menu_ref, $option;
+    return $#$menu_ref;
 }
 
 sub story_so_far {
@@ -158,4 +206,9 @@ sub story_so_far {
 	}
     }
     return join ("", @out);
+}
+
+sub player_turns {
+    my ($self) = @_;
+    return $self->turns->{$self->gertie->player_agent};
 }
