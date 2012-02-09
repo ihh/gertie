@@ -46,8 +46,6 @@ test ($g->to_string, $gs, "Ownership of terminals");
 my $g2 = Gertie->new_from_string ('@c;a@1->b@2;');
 my $g2s = $g2->to_string;
 my $g2t = <<END;
-\@p b\@p;
-\@c b\@c;
 a\@c -> b\@p;
 a\@p -> b\@c;
 END
@@ -57,9 +55,6 @@ test ($g2s, $g2t, 'Canonical form of grammar with @1- and @2-suffixed rule expan
 my $g3 = Gertie->new_from_string ('@q c@q;@r b@r;a@1->b@2 c@3');
 my $g3s = $g3->to_string;
 my $g3t = <<END;
-\@p b\@p c\@p;
-\@q b\@q c\@q;
-\@r b\@r c\@r;
 a\@p -> b\@q c\@r;
 a\@q -> b\@r c\@p;
 a\@r -> b\@p c\@q;

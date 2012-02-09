@@ -32,7 +32,7 @@ sub new_gertie {
 			       'agent_regex' => '[A-Za-z_]\w*\b',
 			       'lhs_regex' => '[A-Za-z_][\w@]*\b',
 			       'rhs_regex' => '[A-Za-z_][\w@]*\b([\?\*\+]?|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\})',
-			       'prob_regex' => '[\d\.]*',
+			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)',
 
 			       'verbose' => 0,
 			       @args );
@@ -376,10 +376,12 @@ sub to_string {
     my @text;
     if (@{$self->agents} > 1) {
 	for my $agent (@{$self->agents}) {
-	    my @term = map ($self->term_name->[$_],
-			    grep ($self->term_id->[$_] != $self->end_id && $self->term_owner->{$self->term_id->[$_]} eq $agent,
-				  0..$#{$self->term_id}));
-	    push @text, "\@$agent @term;\n";
+	    my @term = grep (!/\@$agent$/,
+			     map ($self->term_name->[$_],
+				  grep ($self->term_id->[$_] != $self->end_id
+					&& $self->term_owner->{$self->term_id->[$_]} eq $agent,
+					0..$#{$self->term_id})));
+	    push @text, "\@$agent @term;\n" if @term;
 	}
     }
     for my $lhs (sort @{$self->sym_name}) {
