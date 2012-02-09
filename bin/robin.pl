@@ -17,10 +17,9 @@ $SIG{'INT'} = sub {
 };
 
 my $verbose = 0;
-my ($grammar_file, $choice_file, $narrative_file);
+my ($grammar_file, $text_file);
 GetOptions ("grammar=s"   => \$grammar_file,
-	    "choice=s"   => \$choice_file,
-	    "narrative=s"   => \$narrative_file,
+	    "text=s"   => \$text_file,
 	    "verbose=i"  => \$verbose);
 
 if (@ARGV && !defined $grammar_file) {
@@ -31,8 +30,7 @@ die "You must specify a filename" unless defined $grammar_file;
 
 my $robin = Robin->new_from_file ($grammar_file,
 				  'verbose' => $verbose,
-				  defined($choice_file) ? ('choice_file' => $choice_file) : (),
-				  defined($narrative_file) ? ('narrative_file' => $narrative_file) : ());
+				  defined($text_file) ? ('text_file' => $text_file) : ());
 
 $robin->play;
 

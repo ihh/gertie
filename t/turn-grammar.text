@@ -1,14 +1,14 @@
 >intro
 Welcome to the world's most annoying affective user interface.
->p0
+>p0 Smile
 You smile.
->p1
+>p1 Frown
 You frown.
->p2
+>p2 Nod
 You nod politely.
->p3
+>p3 Scowl
 You scowl, angrily.
->p4
+>p4 Blink
 You blink.
 >c0
 The computer sighs.

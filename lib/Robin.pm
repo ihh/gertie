@@ -1,11 +1,13 @@
 package Robin;
 use Moose;
 use Term::ANSIColor;
+use Carp;
+
 use AutoHash;
+extends 'AutoHash';
+
 use Gertie;
 use Gertie::Inside;
-use Fasta;
-extends 'AutoHash';
 
 use strict;
 
@@ -22,7 +24,7 @@ sub new_robin {
 
 			       'log_color' => color('red on_black'),
 			       'input_color' => color('white on_black'),
-			       'choice_selector_color' => color('yellow on_black'),
+			       'choice_selector_color' => color('white on_black'),
 			       'narrative_color' => color('cyan on_black'),
 			       'choice_color' => color('white on_blue'),
 			       'meta_color' => color('yellow on_black'),
@@ -46,40 +48,45 @@ sub new_from_file {
 
 sub load_text_from_file {
     my ($self, $filename) = @_;
-    my (%choice, %narrative, $current);
-
     local *FILE;
     local $_;
     open FILE, "<$filename" or confess "Couldn't open $filename: $!";
-    my $current;
-    while (<FILE>) { $self->parse_text_line ($_, \$current) }
+    $self->init_text_parser;
+
+    while (<FILE>) { $self->parse_text_line ($_) }
+    $self->cleanup_text_parser;
     close FILE;
-    
-    $self->{'choice_text'} = \%choice;
-    $self->{'narrative_text'} = \%narrative;
 }
 
 sub load_text_from_string {
     my ($self, @text) = @_;
-    my (%choice, %narrative, $current);
-
     @text = map ("$_\n", map (split(/\n/), join ("", @text)));
-    for my $line (@text) { $self->parse_text_line ($line, \$current) }
-    
-    $self->{'choice_text'} = \%choice;
-    $self->{'narrative_text'} = \%narrative;
+    $self->init_text_parser;
+    for my $line (@text) { $self->parse_text_line ($line) }
+    $self->cleanup_text_parser;
 }
 
+sub init_text_parser {
+    my ($self) = @_;
+    $self->{'choice_text'} = {};
+    $self->{'narrative_text'} = {};
+    $self->{'current_text_symbol'} = undef;
+}
+
+sub cleanup_text_parser {
+    my ($self) = @_;
+    delete $self->{'current_text_symbol'};
+}
 
 sub parse_text_line {
-    my ($self, $line, $name_ref) = @_;
+    my ($self, $line) = @_;
     if ($line =~ /^\s*>\s*(\S+)\s*(.*)$/) {
-	my ($name, $cruft) = ($1, $2);
-	carp "Multiple definitions of $name -- overwriting" if defined $self->{$name};
-	$self->{$name} = $cruft;
-	$$name_ref = $name;
-    } elsif (defined $$name_ref) {
-	$self->{$$name_ref} .= $line;
+	my ($name, $choice) = ($1, $2);
+	carp "Multiple definitions of $name -- overwriting" if defined $self->choice_text->{$name};
+	$self->choice_text->{$name} = $choice;
+	$self->current_text_symbol ($name);
+    } elsif (defined $self->current_text_symbol) {
+	$self->narrative_text->{$self->current_text_symbol} .= $line;
     } else {
 	carp "Discarding line $line" if $line =~ /\S/;
     }
@@ -186,42 +193,70 @@ sub player_choice {
 	if ($page > 0) { $prev_page = add_option (\@menu_color, $meta_color, \@menu, "(previous options)") }
 	if ($self->player_turns > 0) { $review = add_option (\@menu_color, $meta_color, \@menu, "(review transcript)") }
 
-	# print the menu
-#	if (@options > $self->options_per_page) { print "[Page ", $page + 1, "]\n" }
-	print
-	    "\n",
-	    $meta_color,
-	    "Your choices:\n",
-	    map ((' ', $choice_selector_color, $_ + 1, '.', color('reset'), ' ',
-		  $menu_color[$_], $menu[$_],
-		  color('reset'), "\n"),
-		 0..$#menu),
-	    $meta_color,
-	    "\nEnter your choice: ",
-	    $input_color;
+	# variables determining whether to print the menu
+	my $display_choices = 1;
+	my $display_prompt = 1;
+	my $frustrated_tries = 0;
+	my $max_frustrated_tries = 3;
 
 	# get user input
 	my ($input, $n);
 	do {
+	    # Redisplay the choices periodically
+	    if ($frustrated_tries) {
+		$display_prompt = 1;
+		if ($frustrated_tries >= $max_frustrated_tries) {
+		    $display_choices = 1;
+		    $frustrated_tries = 0;
+		}
+	    }
+
+	    # Commented-out line displays page number in longer choices list
+	    # if (@options > $self->options_per_page) { print "[Page ", $page + 1, "]\n" if $display_choices }
+	    print
+		"\n",
+		$meta_color,
+		"Your choices:\n",
+		map ((' ', $choice_selector_color, $_ + 1, '.', color('reset'), ' ',
+		      $menu_color[$_], $menu[$_],
+		      color('reset'), "\n"),
+		     0..$#menu)
+		if $display_choices;
+	    print
+		$meta_color, "\nEnter your choice: ", $input_color if $display_prompt;
+	    $display_prompt = $display_choices = 0;
+
 	    $input = <>;
 	    chomp $input;
 	    $input =~ s/^\s*//;
 	    $input =~ s/\s*$//;
 	    my $quoted_input = quotemeta($input);
+
 	    if ($input =~ /^\d+/ && $input >= 1 && $input <= @menu) {
 		$n = $input - 1;
 		print $menu_color[$n], $menu[$n], color('reset'), "\n\n";
-	    } elsif (my @match = grep ($menu[$_] =~ /$quoted_input/i, 0..$#menu)) {
-		$n = shift @match;
-		print
-		    $meta_color, "(Choice ", $n+1, ")", color('reset'), " ",
-		    $menu_color[$n], $menu[$n], color('reset'), "\n\n";
+	    } elsif (my @match = length($input) ? grep ($menu[$_] =~ /$quoted_input/i, 0..$#menu) : ()) {
+		if (@match == 1) {
+		    ($n) = @match;
+		    print
+			$meta_color, "(Choice ", $n+1, ")", color('reset'), " ",
+			$menu_color[$n], $menu[$n], color('reset'), "\n\n";
+		} else {
+		    my $last = pop(@match);
+		    print
+			$meta_color, "Ambiguous choice (",
+			join (", ", map ($choice_selector_color . ($_ + 1) . $meta_color, @match)),
+			" or ", $choice_selector_color, $last + 1, $meta_color,
+			"?) - try selecting by number";
+		    ++$frustrated_tries;
+		}
 	    } else {
-		print $meta_color, "Invalid choice - try again\nEnter your choice: ", $input_color;
+		print $meta_color, "Not sure which choice you meant there - please try again";
+		++$frustrated_tries;
 	    }
 	} while (!defined $n);
 
-	# decode user input
+	# decode user choice
 	if ($n == $next_page) { ++$page }
 	elsif ($n == $prev_page) { --$page }
 	elsif ($n == $review) {
