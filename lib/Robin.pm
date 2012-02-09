@@ -208,6 +208,7 @@ sub player_choice {
 		if ($frustrated_tries >= $max_frustrated_tries) {
 		    $display_choices = 1;
 		    $frustrated_tries = 0;
+		    print "\n";
 		}
 	    }
 
