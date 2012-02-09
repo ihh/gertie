@@ -32,23 +32,23 @@ sub test_canonical {
 my $g1t = <<END;
 \@p p0 p1 p2 p3 p4;
 \@c c1 c2 c3 c4;
-A -> end  0.25;
-A -> p1 B  0.5;
-A -> p3 C  0.25;
-B -> c1 D  0.5;
-B -> c3 D  0.25;
-B -> end  0.25;
-C -> c2 E  0.5;
-C -> c4 E  0.25;
-C -> end  0.25;
-D -> end  0.25;
-D -> p2 A  0.5;
-D -> p4 A  0.25;
-E -> end  0.25;
-E -> p0 A  0.25;
-E -> p2 A  0.5;
+a -> end  0.25;
+a -> p1 b  0.5;
+a -> p3 c  0.25;
+b -> c1 d  0.5;
+b -> c3 d  0.25;
+b -> end  0.25;
+c -> c2 e  0.5;
+c -> c4 e  0.25;
+c -> end  0.25;
+d -> end  0.25;
+d -> p2 a  0.5;
+d -> p4 a  0.25;
+e -> end  0.25;
+e -> p0 a  0.25;
+e -> p2 a  0.5;
 END
-test_canonical ('@p p0 p1 p2 p3 p4;@c c1 c2 c3 c4;A->p1 B 2|p3 C|end;B->c1 D 2|c3 D|end;C->c2 E 2|c4 E|end;D->p2 A 2|p4 A|end;E->p2 A 2|p0 A|end',
+test_canonical ('@p p0 p1 p2 p3 p4;@c c1 c2 c3 c4;a->p1 b 2|p3 c|end;b->c1 d 2|c3 d|end;c->c2 e 2|c4 e|end;d->p2 a 2|p4 a|end;e->p2 a 2|p0 a|end',
 		$g1t,
 		"Ownership of terminals");
 

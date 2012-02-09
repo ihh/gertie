@@ -20,12 +20,12 @@ sub dump_log {
 }
 
 
-my $g = Gertie->new_from_string ('A->B1 B2 B3 C;B1->D;B2->E|F;B3->F|G;C->G;');
+my $g = Gertie->new_from_string ('a->b1 b2 b3 c;b1->d;b2->e|f;b3->f|g;c->g;');
 
-my @seq1 = $g->tokenize([qw(D E F G)]);
+my @seq1 = $g->tokenize([qw(d e f g)]);
 my $pq1 = $g->prefix_Inside (\@seq1);
 
-my @seq2 = $g->tokenize([qw(D E G G)]);
+my @seq2 = $g->tokenize([qw(d e g g)]);
 my $pq2 = $g->prefix_Inside (\@seq2);
 my $pq2s = $g->prefix_Inside (\@seq2, $pq1);
 

@@ -28,17 +28,17 @@ sub dump_log {
 }
 
 
-my $g = Gertie->new_from_string ('A->D D;A->D;');
+my $g = Gertie->new_from_string ('a->d d;a->d;');
 
-my @seq = $g->tokenize (['D']);
+my @seq = $g->tokenize (['d']);
 my $pq = $g->prefix_Inside (\@seq);
 
 my $inside = <<END;
-Prefix 1..: D=>1 A=>1
+Prefix 1..: d=>1 a=>1
 Inside (1,1): end=>1
-Prefix 0..: A=>0.5
+Prefix 0..: a=>0.5
 Inside (0,0): end=>1
-Inside (0,1): D=>1 A=>0.5
+Inside (0,1): d=>1 a=>0.5
 END
 test ($pq->to_string, $inside, "DP matrix");
 
@@ -52,8 +52,8 @@ for (my $k = 0; $k < $samples; ++$k) {
     ++$tb{$g->print_parse_tree($tbparse)};
 }
 
-my $parse1 = "(A->D)";
-my $parse2 = "(A->D,D)";
+my $parse1 = "(a->d)";
+my $parse2 = "(a->d,d)";
 my $min = $samples * .48;  # leave some margin for error... could calculate failure probability with binomial distribution, if being very careful
 
 sub balance_test {
@@ -66,15 +66,15 @@ balance_test ("simulation", %sim);
 balance_test ("stochastic traceback", %tb);
 
 
-my $g2 = Gertie->new_from_string ('A->D E F;A->D G;A->D 2;');
+my $g2 = Gertie->new_from_string ('a->d e f;a->d g;a->d 2;');
 
-my @seq2 = $g2->tokenize (['D']);
+my @seq2 = $g2->tokenize (['d']);
 my $pq2 = $g2->prefix_Inside (\@seq2);
 my %tp = $pq2->next_term_prob;
 
 test ($pq2->continue_prob, .5, "Probability of continuation");
-test ($tp{'E'}, .5, "Probability of next terminal (E)");
-test ($tp{'G'}, .5, "Probability of next terminal (G)");
+test ($tp{'e'}, .5, "Probability of next terminal (e)");
+test ($tp{'g'}, .5, "Probability of next terminal (g)");
 
 dump_log();
 

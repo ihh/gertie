@@ -29,9 +29,9 @@ sub new_gertie {
 			       'term_owner_by_name' => {},
 			       'agents' => [qw(p)],  # first agent is the human player
 
-			       'agent_regex' => '[A-Za-z_]\w*\b',
-			       'lhs_regex' => '[A-Za-z_][\w@]*\b',
-			       'rhs_regex' => '[A-Za-z_][\w@]*\b([\?\*\+]?|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\})',
+			       'agent_regex' => '[a-z]\w*\b',
+			       'lhs_regex' => '[a-z][\w@]*\b',
+			       'rhs_regex' => '[a-z][\w@]*\b([\?\*\+]?|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\})',
 			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)',
 
 			       'verbose' => 0,

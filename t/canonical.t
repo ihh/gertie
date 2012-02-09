@@ -20,41 +20,41 @@ sub dump_log {
 }
 
 
-my $g = Gertie->new_from_string ('A->C 2|D E F G 5|B 1');
+my $g = Gertie->new_from_string ('a->c 2|d e f g 5|b 1');
 my $gs = $g->to_string;
 my $gt = <<END;
-A -> B  0.125;
-A -> C  0.25;
-A -> D E F G  0.625;
+a -> b  0.125;
+a -> c  0.25;
+a -> d e f g  0.625;
 END
 test ($gs, $gt, "Canonical form of grammar with multiple RHS separated by '|'");
 
 
-my $g2 = Gertie->new_from_string ('A->B+ C{,3} D{,4} E{1,4} F* G?');
+my $g2 = Gertie->new_from_string ('a->b+ c{,3} d{,4} e{1,4} f* g?');
 my $g2s = $g2->to_string;
 my $g2t = <<END;
-A -> B+ C{,3} D{,4} E{1,4} F* G?;
-B+ -> B B+  0.5;
-B+ -> B  0.5;
-C{,3} -> C C  0.25;
-C{,3} -> C  0.25;
-C{,3} -> C C C  0.25;
-C{,3} -> end  0.25;
-D{,4} -> D D  0.2;
-D{,4} -> D  0.2;
-D{,4} -> D D D  0.2;
-D{,4} -> D D D D  0.2;
-D{,4} -> end  0.2;
-E{1,4} -> E E  0.25;
-E{1,4} -> E  0.25;
-E{1,4} -> E E E  0.25;
-E{1,4} -> E E E E  0.25;
-F* -> F F*  0.5;
-F* -> end  0.5;
-G? -> G  0.5;
-G? -> end  0.5;
+a -> b+ c{,3} d{,4} e{1,4} f* g?;
+b+ -> b b+  0.5;
+b+ -> b  0.5;
+c{,3} -> c c  0.25;
+c{,3} -> c  0.25;
+c{,3} -> c c c  0.25;
+c{,3} -> end  0.25;
+d{,4} -> d d  0.2;
+d{,4} -> d  0.2;
+d{,4} -> d d d  0.2;
+d{,4} -> d d d d  0.2;
+d{,4} -> end  0.2;
+e{1,4} -> e e  0.25;
+e{1,4} -> e  0.25;
+e{1,4} -> e e e  0.25;
+e{1,4} -> e e e e  0.25;
+f* -> end  0.5;
+f* -> f f*  0.5;
+g? -> end  0.5;
+g? -> g  0.5;
 END
-test ($g2s, $g2t, "Canonical form of grammar with quantifiers");
+test ($g2s, $g2t, "canonical form of grammar with quantifiers");
 
 
 dump_log();

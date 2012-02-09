@@ -20,10 +20,10 @@ sub dump_log {
 }
 
 
-my $g = Gertie->new_from_string ('A->B1 B2 B3 C;B1->D;B2->E;B3->F;C->G;');
+my $g = Gertie->new_from_string ('a->b1 b2 b3 c;b1->d;b2->e;b3->f;c->g;');
 
 my $simparse = $g->simulate;
 my $seq = join (" ", $g->parse_tree_sequence($simparse));
-test ($seq, "D E F G", "Simulated sequence");
+test ($seq, "d e f g", "Simulated sequence");
 
 dump_log();
