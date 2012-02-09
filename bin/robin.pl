@@ -10,5 +10,6 @@ unless (@ARGV) {
     warn "Waiting for grammar on standard input\n";
     push @ARGV, '-';
 }
-my $robin = Robin->new_from_file (shift, 'verbose' => 5);
+my $robin = Robin->new_from_file (shift, 'verbose'=>9);
+$robin->gertie->verbose(1);  # do this after reading the file
 $robin->play;

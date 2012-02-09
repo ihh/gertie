@@ -16,6 +16,7 @@ use Symbol qw(gensym);
 
 # specific imports
 use Graph::Directed;
+use Time::Progress;
 
 # constructor
 sub new_Inside {
@@ -24,6 +25,20 @@ sub new_Inside {
 			       'tokseq' => [@$tokseq],
 			       'prev' => $prev_Inside );
     bless $self, $class;
+
+    # Length of shared re-usable prefix
+    my $shared_len = 0;
+    if (defined $prev_Inside) {
+	my $prev_tokseq = $prev_Inside->tokseq;
+	while ($shared_len < @$prev_tokseq
+	       && $shared_len < @$tokseq
+	       && $tokseq->[$shared_len] == $prev_tokseq->[$shared_len]) {
+	    ++$shared_len;
+	}
+    }
+    $self->{'shared_len'} = $shared_len;
+
+    # fill and return
     $self->fill();
     return $self;
 }
@@ -41,12 +56,8 @@ sub fill {
     my $max_inside_len = $gertie->max_inside_len;
     my $symbols = @{$gertie->sym_name} + 0;
 
-    my $shared_len = 0;
-    if (defined $prev_tokseq) {
-	while ($shared_len < @$prev_tokseq && $shared_len < @$tokseq && $tokseq->[$shared_len] == $prev_tokseq->[$shared_len]) {
-	    ++$shared_len;
-	}
-    }
+    my $shared_len = $self->shared_len;
+    my $eff_max_inside_len = defined($max_inside_len) ? $max_inside_len : $len;
 
     # Create Inside matrix
     # p(i,j,sym) = P(seq[i]..seq[j-1] | sym)
@@ -269,13 +280,22 @@ sub next_term_prob {
     my $continue_prob = $self->continue_prob;
     my %term_prob;
     if ($self->final_q > 0) {
+	my @term_id;
 	for my $term_id (@{$self->gertie->term_id}) {
 	    next if $term_id == $self->gertie->end_id;
 	    next unless $agent_ok{$self->gertie->term_owner->{$term_id}};
+	    push @term_id, $term_id;
+	}
+	my $progress = Time::Progress->new;
+	$progress->restart ('max' => $#term_id);
+	for my $n (0..$#term_id) {
+	    my $term_id = $term_id[$n];
+	    my $term_name = $self->gertie->sym_name->[$term_id];
 	    my @tokseq = (@{$self->tokseq}, $term_id);
 	    my $mx = Gertie::Inside->new_Inside ($self->gertie, \@tokseq, $self);
 	    my $prob = $mx->final_total / $self->final_q;
 	    if ($prob > 0) { $term_prob{$self->gertie->sym_name->[$term_id]} = $prob }
+	    warn $progress->report ("\%B $term_name ($prob)\n", $n) if $self->gertie->verbose;
 	}
     }
     return %term_prob;
