@@ -1,8 +1,10 @@
+GRAMMAR = turn-grammar
+
 debug:
-	bin/robin.pl -verbose 9 t/turn-grammar
+	bin/robin.pl -grammar t/$(GRAMMAR) -choice t/$(GRAMMAR).choice -narrative t/$(GRAMMAR).narrative -verbose 9
 
 turn:
-	bin/robin.pl t/turn-grammar
+	bin/robin.pl t/$(GRAMMAR)
 
 test:
 	prove

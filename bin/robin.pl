@@ -17,17 +17,23 @@ $SIG{'INT'} = sub {
 };
 
 my $verbose = 0;
-my $filename;
-GetOptions ("filename=s"   => \$filename,
+my ($grammar_file, $choice_file, $narrative_file);
+GetOptions ("grammar=s"   => \$grammar_file,
+	    "choice=s"   => \$choice_file,
+	    "narrative=s"   => \$narrative_file,
 	    "verbose=i"  => \$verbose);
 
-if (@ARGV && !defined $filename) {
-    $filename = shift;
+if (@ARGV && !defined $grammar_file) {
+    $grammar_file = shift;
 }
 
-die "You must specify a filename" unless defined $filename;
+die "You must specify a filename" unless defined $grammar_file;
 
-my $robin = Robin->new_from_file ($filename, 'verbose' => $verbose);
+my $robin = Robin->new_from_file ($grammar_file,
+				  'verbose' => $verbose,
+				  defined($choice_file) ? ('choice_file' => $choice_file) : (),
+				  defined($narrative_file) ? ('narrative_file' => $narrative_file) : ());
+
 $robin->play;
 
 

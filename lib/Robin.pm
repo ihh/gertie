@@ -40,7 +40,10 @@ sub new_from_file {
     my $gertie = Gertie->new_from_file ($filename);
     my $self = $class->new_robin ($gertie, @args);
     # quick hack to load choice/narrative files if they have the same filename
-    my ($choice_file, $narrative_file) = map ("$filename.$_", qw(choice narrative));
+    my ($choice_file, $narrative_file) = map ((defined($self->{$_."_file"})
+					       ? $self->{$_."_file"}
+					       : "$filename.$_"),
+					      qw(choice narrative));
     $self->load_choice_text ($choice_file) if -e $choice_file;
     $self->load_narrative_text ($narrative_file) if -e $narrative_file;
     # return
