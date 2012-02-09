@@ -16,10 +16,18 @@ sub new_robin {
 			       'seq' => [],
 			       'tokseq' => [],
 			       'inside' => undef,
+
 			       'choice_text' => undef,
 			       'narrative_text' => undef,
+
+			       'log_color' => color('red on_black'),
+			       'input_color' => color('white on_black'),
+			       'choice_selector_color' => color('yellow on_black'),
+			       'narrative_color' => color('cyan on_black'),
+			       'choice_color' => color('white on_blue'),
+			       'meta_color' => color('yellow on_black'),
+
 			       'options_per_page' => 3,
-			       'updates' => [],
 			       'turns' => {},
 			       'verbose' => 0,
 			       @args );
@@ -55,7 +63,7 @@ sub play {
     $self->inside ($self->gertie->prefix_Inside([]));  # initialize empty Inside matrix
     $self->inside->verbose ($self->verbose);  # make the Inside matrix as verbose as we are, for log tidiness
     $self->{'turns'} = { map (($_ => 0), @{$self->gertie->agents}) };
-    my $log_color = color('red on_black');
+    my $log_color = $self->log_color;
     my $reset_nl = color('reset') . "\n";
     my @begin_log = ($log_color, "--- BEGIN DEBUG LOG", $reset_nl);
     my @end_log = ($log_color, "--- END DEBUG LOG", $reset_nl);
@@ -93,8 +101,8 @@ sub play {
 	++$self->turns->{$agent};
 	push @{$self->seq}, $next_term;
 	push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
-	push @{$self->updates}, $next_term;
 	print $log_color, "Terminal: $next_term", $reset_nl if $self->verbose;
+	push @{$self->updates}, $next_term;
 
 	# update Inside matrix
 	my $inside = $self->gertie->prefix_Inside ($self->tokseq, $self->inside);
@@ -106,15 +114,17 @@ sub play {
 sub player_choice {
     my ($self, @options) = @_;
 #    return $options[0] if @options == 1;
-    my $page = 0;
-    my $choice;
+
     my $choice_text = $self->choice_text;
     my $narrative_text = $self->narrative_text;
-    my $input_color = color('white');
-    my $choice_selector_color = color('yellow');
-    my $narrative_color = color('cyan');
-    my $choice_color = color('white on_blue');
-    my $meta_color = color('yellow');
+    my $input_color = $self->input_color;
+    my $choice_selector_color = $self->choice_selector_color;
+    my $narrative_color = $self->narrative_color;
+    my $choice_color = $self->choice_color;
+    my $meta_color = $self->meta_color;
+
+    my $page = 0;
+    my $choice;
     while (!defined $choice) {
 	# build menu
 	my $min = $page * $self->options_per_page;
