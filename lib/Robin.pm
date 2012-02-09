@@ -38,21 +38,51 @@ sub new_robin {
 sub new_from_file {
     my ($class, $filename, @args) = @_;
     my $gertie = Gertie->new_from_file ($filename);
-    my $self = $class->new_robin ($gertie, @args);
-    # quick hack to load choice/narrative files if they have the same filename
-    my ($choice_file, $narrative_file) = map ((defined($self->{$_."_file"})
-					       ? $self->{$_."_file"}
-					       : "$filename.$_"),
-					      qw(choice narrative));
-    $self->load_choice_text ($choice_file) if -e $choice_file;
-    $self->load_narrative_text ($narrative_file) if -e $narrative_file;
+    my $self = $class->new_robin ($gertie, 'text_file' => "$filename.text", @args);
+    $self->load_text_from_file ($self->text_file) if -e $self->text_file;
     # return
     return $self;
 }
 
-sub load_choice_text {
+sub load_text_from_file {
     my ($self, $filename) = @_;
-    $self->{'choice_text'} = Fasta->new_from_file ($filename);
+    my (%choice, %narrative, $current);
+
+    local *FILE;
+    local $_;
+    open FILE, "<$filename" or confess "Couldn't open $filename: $!";
+    my $current;
+    while (<FILE>) { $self->parse_text_line ($_, \$current) }
+    close FILE;
+    
+    $self->{'choice_text'} = \%choice;
+    $self->{'narrative_text'} = \%narrative;
+}
+
+sub load_text_from_string {
+    my ($self, @text) = @_;
+    my (%choice, %narrative, $current);
+
+    @text = map ("$_\n", map (split(/\n/), join ("", @text)));
+    for my $line (@text) { $self->parse_text_line ($line, \$current) }
+    
+    $self->{'choice_text'} = \%choice;
+    $self->{'narrative_text'} = \%narrative;
+}
+
+
+sub parse_text_line {
+    my ($self, $line, $name_ref) = @_;
+    if ($line =~ /^\s*>\s*(\S+)\s*(.*)$/) {
+	my ($name, $cruft) = ($1, $2);
+	carp "Multiple definitions of $name -- overwriting" if defined $self->{$name};
+	$self->{$name} = $cruft;
+	$$name_ref = $name;
+    } elsif (defined $$name_ref) {
+	$self->{$$name_ref} .= $line;
+    } else {
+	carp "Discarding line $line" if $line =~ /\S/;
+    }
 }
 
 sub load_narrative_text {
