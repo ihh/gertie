@@ -163,7 +163,7 @@ sub player_choice {
 	    if ($input =~ /^\d+/ && $input >= 1 && $input <= @menu) {
 		$n = $input - 1;
 		print $menu_color[$n], $menu[$n], color('reset'), "\n";
-	    } elsif (my @match = grep (/$quoted_input/i, @menu)) {
+	    } elsif (my @match = grep ($menu[$_] =~ /$quoted_input/i, 0..$#menu)) {
 		$n = shift @match;
 		print
 		    $meta_color, "(Choice ", $n+1, ")", color('reset'), " ",
