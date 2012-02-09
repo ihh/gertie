@@ -25,7 +25,7 @@ my $g = Gertie->new_from_string ('a->b c;b->d;c->end;');
 my $simparse = $g->simulate;
 test ($g->print_parse_tree($simparse), "(a->(b->d),(c->end))", "Simulated parse");
 
-my @seq = $g->tokenize (['d']);
+my @seq = $g->tokenize ('d');
 my $pq = $g->prefix_Inside (\@seq);
 my $inside = <<END;
 Prefix 1..: d=>1 b=>1 a=>1

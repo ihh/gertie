@@ -421,16 +421,16 @@ sub to_string {
 
 # subroutine to tokenize a sequence
 sub tokenize {
-    my ($self, $seq) = @_;
-    my @undefs = grep (!exists($self->sym_id->{$_}), @$seq);
+    my ($self, @seq) = @_;
+    my @undefs = grep (!exists($self->sym_id->{$_}), @seq);
     confess "Undefined symbols (@undefs)" if @undefs;
-    return map ($self->sym_id->{$_}, @$seq);
+    return map ($self->sym_id->{$_}, @seq);
 }
 
 # subroutine to compute Inside matrix for given tokenized prefix sequence
 sub prefix_Inside {
-    my ($self, $tokseq, $prev_Inside) = @_;
-    return Gertie::Inside->new_Inside ($self, $tokseq, $prev_Inside);
+    my ($self, $tokseq, @args) = @_;
+    return Gertie::Inside->new_Inside ($self, $tokseq, @args);
 }
 
 sub simulate_Chomsky {

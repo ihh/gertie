@@ -30,7 +30,7 @@ sub dump_log {
 
 my $g = Gertie->new_from_string ('a->d d;a->d;');
 
-my @seq = $g->tokenize (['d']);
+my @seq = $g->tokenize ('d');
 my $pq = $g->prefix_Inside (\@seq);
 
 my $inside = <<END;
@@ -68,7 +68,7 @@ balance_test ("stochastic traceback", %tb);
 
 my $g2 = Gertie->new_from_string ('a->d e f;a->d g;a->d 2;');
 
-my @seq2 = $g2->tokenize (['d']);
+my @seq2 = $g2->tokenize ('d');
 my $pq2 = $g2->prefix_Inside (\@seq2);
 my %tp = $pq2->next_term_prob;
 

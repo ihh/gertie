@@ -100,7 +100,7 @@ sub load_narrative_text {
 # play method
 sub play {
     my ($self) = @_;
-    $self->inside ($self->gertie->prefix_Inside([]));  # initialize empty Inside matrix
+    $self->inside ($self->gertie->prefix_Inside);  # initialize empty Inside matrix
     $self->inside->verbose ($self->verbose);  # make the Inside matrix as verbose as we are, for log tidiness
     $self->{'turns'} = { map (($_ => 0), @{$self->gertie->agents}) };
 
@@ -158,8 +158,7 @@ sub play {
 	}
 
 	# update Inside matrix
-	my $inside = $self->gertie->prefix_Inside ($self->tokseq, $self->inside);
-	$self->inside ($inside);
+	$self->inside->push_sym ($next_term);
     }
   }
 }
