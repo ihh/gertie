@@ -20,6 +20,8 @@ use Graph::Directed;
 # constructor
 sub new_gertie {
     my ($class, @args) = @_;
+    my $sym_regex = '[a-z][\w@]*\b';
+    my $quant_regex = '[\?\*\+]|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\}';
     my $self = AutoHash->new ( 'end' => "end",
 			       'rule' => [],
 			       'symbol' => {},
@@ -30,9 +32,10 @@ sub new_gertie {
 			       'agents' => [qw(p)],  # first agent is the human player
 
 			       'agent_regex' => '[a-z]\w*\b',
-			       'lhs_regex' => '[a-z][\w@]*\b',
-			       'rhs_regex' => '[a-z][\w@]*\b([\?\*\+]?|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\})',
+			       'lhs_regex' => $sym_regex,
+			       'rhs_regex' => "$sym_regex(|$quant_regex)",
 			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)',
+			       'quantifier_regex' => "($quant_regex)".'$',
 
 			       'verbose' => 0,
 			       @args );
@@ -52,7 +55,8 @@ sub new_from_file {
 sub new_from_string {
     my ($class, $text, @args) = @_;
     my $self = $class->new_gertie (@args);
-    $self->parse ($text);
+    my @text = split /\n/, $text;
+    $self->parse (@text);
     $self->index();
     return $self;
 }
@@ -72,6 +76,7 @@ sub parse_files {
 
 sub parse {
     my ($self, @text) = @_;
+    grep (s/\/\/.*$//, @text);  # strip out C++ style // comments
     my @lines = split (/;/, join ("", @text));
     for my $line (@lines) {
 	$self->parse_line ($line);
@@ -83,7 +88,6 @@ sub parse_line {
     local $_;
     $_ = $line;
     return unless /\S/;  # ignore blank lines
-    return if /^\s*\/\//;  # ignore C++-style comments ("// ...")
 
     my $agent_regex = $self->agent_regex;
     my $lhs_regex = $self->lhs_regex;
@@ -143,6 +147,7 @@ sub add_rule {
     # Supply default values
     $rhs2 = $self->end unless length($rhs2);
     $prob = 1 unless length($prob);
+    $prob = eval($prob);
     # Check the rule is valid
     confess unless defined($rhs1) && length($rhs1);
     confess if $lhs eq $self->end;  # No rules starting with 'end'
@@ -388,6 +393,7 @@ sub to_string {
 	    }
 	}
     }
+    my $quant_regex = $self->quantifier_regex;
     for my $lhs (sort @{$self->sym_name}) {
 	next if $lhs =~ /\./;  # don't print rules added by Chomsky-fication
 	next if $lhs eq $self->end;  # don't mess around with 'end' nonterminal
@@ -405,8 +411,8 @@ sub to_string {
 		$rhs =~ s/\s+/ /;
 		$rhs =~ s/^\s*//;
 		$rhs = $self->end unless length $rhs;
-		$rule_prob = ($rule_prob == 1 ? "" : "  $rule_prob");
-		push @text, "$lhs -> $rhs$rule_prob;\n";
+		$rule_prob = ($rule_prob == 1 ? "" : " ($rule_prob)");
+		push @text, ($lhs =~ /$quant_regex/ ? "// " : "") . "$lhs -> $rhs$rule_prob;\n";
 	    }
 	}
     }

@@ -23,8 +23,8 @@ sub dump_log {
 my $g = Gertie->new_from_file ($FindBin::Bin."/multiline-grammar");
 my $gs = $g->to_string;
 my $gt = <<END;
-a -> b c  0.5;
-a -> d  0.5;
+a -> b c (0.5);
+a -> d (0.5);
 END
 test ($gs, $gt, "Canonical form of grammar read from file, split over multiple lines");
 
