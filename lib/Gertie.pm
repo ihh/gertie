@@ -37,6 +37,8 @@ sub new_gertie {
 			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)',
 			       'quantifier_regex' => "($quant_regex)".'$',
 
+			       'inside_class' => 'Gertie::Inside::Native',
+
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
@@ -430,7 +432,9 @@ sub tokenize {
 # subroutine to compute Inside matrix for given tokenized prefix sequence
 sub prefix_Inside {
     my ($self, $tokseq, @args) = @_;
-    return Gertie::Inside->new_Inside ($self, $tokseq, @args);
+    my $inside_class = $self->inside_class;
+    eval ("require $inside_class");
+    return $inside_class->new_Inside ($self, $tokseq, @args);
 }
 
 sub simulate_Chomsky {
