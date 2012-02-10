@@ -232,15 +232,29 @@ sub player_choice {
 	my $min = $page * $self->options_per_page;
 	my $max = $min + $self->options_per_page - 1;
 	$max = $#options if $max > $#options;
+
+	# Create menu text
 	my @menu = @options[$min..$max];
-	my @menu_color = map ($choice_color, @menu);
 	if (defined $choice_text) { @menu = map (defined($choice_text->{$_}) ? $choice_text->{$_} : $_, @menu) }
 
-	# add extra pseudo-options
-	my ($next_page, $prev_page, $review) = (-1, -1, -1);
-	if ($self->player_turns > 0) { $review = add_option (\@menu_color, $meta_color, \@menu, "(review transcript)") }
-	if ($max < $#options) { $next_page = add_option (\@menu_color, $meta_color, \@menu, "(more options)") }
-	if ($page > 0) { $prev_page = add_option (\@menu_color, $meta_color, \@menu, "(previous options)") }
+	# Create menu callbacks
+	my @item_callback = map ([$choice_color . $_, sub { $choice = shift() + $min; print "\n" }],
+				 @menu);
+
+	if ($self->player_turns > 0) {
+	    push @item_callback,
+	    [$meta_color . "(review transcript)", sub { print "\n", $narrative_color, $self->story_so_far } ];
+	}
+
+	if ($max < $#options) {
+	    push @item_callback,
+	    [$meta_color . "(more options)", sub { ++$page }];
+	}
+
+	if ($page > 0) {
+	    push @item_callback,
+	    [$meta_color . "(previous options)", sub { --$page }];
+	}
 
 	# variables determining whether to print the menu
 	my $display_choices = 1;
@@ -268,9 +282,9 @@ sub player_choice {
 		$meta_color,
 		"Your choices:\n",
 		map ((' ', $choice_selector_color, $_ + 1, '.', $self->reset_color, ' ',
-		      $menu_color[$_], $menu[$_],
+		      $item_callback[$_]->[0],
 		      $self->reset_color, "\n"),
-		     0..$#menu)
+		     0..$#item_callback)
 		if $display_choices;
 	    print
 		$meta_color, "\nEnter your choice: ", $input_color if $display_prompt;
@@ -282,15 +296,25 @@ sub player_choice {
 	    $input =~ s/\s*$//;
 	    my $quoted_input = quotemeta($input);
 
-	    if ($input =~ /^\d+/ && $input >= 1 && $input <= @menu) {
-		$n = $input - 1;
-		print $menu_color[$n], $menu[$n], $self->reset_color, "\n";
-	    } elsif (my @match = length($input) ? grep ($menu[$_] =~ /$quoted_input/i, 0..$#menu) : ()) {
+	    if ($input =~ /^\-?\d+/) {
+		if ($input >= 1 && $input <= @item_callback) {
+		    $n = $input - 1;
+		    print $item_callback[$n]->[0], $self->reset_color, "\n";
+		} else {
+		    print $meta_color, "Wow, that's weird - did you mean ",
+		    join (", ", map ($choice_selector_color . $_ . $meta_color, 1..$#item_callback)),
+		    " or ", $choice_selector_color, @item_callback+0, $meta_color, ", maybe?";
+		    ++$frustrated_tries;
+		}
+	    } elsif (my @match = length($input)
+		     ? grep ($item_callback[$_]->[0] =~ /$quoted_input/i,
+			     0..$#item_callback)
+		     : ()) {
 		if (@match == 1) {
 		    ($n) = @match;
 		    print
 			$meta_color, "(Choice ", $n+1, ")", $self->reset_color, " ",
-			$menu_color[$n], $menu[$n], $self->reset_color, "\n\n";
+			$item_callback[$n]->[0], $self->reset_color, "\n\n";
 		} else {
 		    my $last = pop(@match);
 		    print
@@ -301,30 +325,15 @@ sub player_choice {
 		    ++$frustrated_tries;
 		}
 	    } else {
-		print $meta_color, "Not sure which choice you meant there - please try again";
+		print $meta_color, "Not sure which choice you meant there - please try again?";
 		++$frustrated_tries;
 	    }
 	} while (!defined $n);
 
-	# decode user choice
-	if ($n == $next_page) { ++$page }
-	elsif ($n == $prev_page) { --$page }
-	elsif ($n == $review) {
-	    print "\n", $narrative_color, $self->story_so_far;
-	}
-	else {
-	    $choice = $n + $min;
-	    print "\n";
-	}
+	# act on user choice
+	&{$item_callback[$n]->[1]} ($n);
     }
     return $options[$choice];
-}
-
-sub add_option {
-    my ($menu_color_ref, $color, $menu_ref, $option) = @_;
-    push @$menu_color_ref, $color;
-    push @$menu_ref, $option;
-    return $#$menu_ref;
 }
 
 sub story_so_far {
