@@ -36,17 +36,18 @@ struct Cell {
   int j;
   vector<vector<double> > p, q;
 };
+typedef Cell* CellPtr;
 
 struct Matrix {
   Matrix (const Grammar& g) : grammar(g) { cell.push_back (new Cell(g)); }
-  ~Matrix() { for (vector<Cell*>::const_iterator c = cell.begin(); c != cell.end(); ++c) delete *c; }
+  ~Matrix() { for (vector<CellPtr>::const_iterator c = cell.begin(); c != cell.end(); ++c) delete *c; }
   int len() { return tokseq.size(); }
   double get_p(int i,int j,int sym) { return cell[j]->get_p(i,sym); }
   double get_q(int i,int sym) { return cell.back()->get_q(i,sym); }
   void push_tok(int tok);
   int pop_tok();
   const Grammar& grammar;
-  vector<Cell*> cell;
+  vector<CellPtr> cell;
   vector<int> tokseq;
 };
 
@@ -54,7 +55,7 @@ void Matrix::push_tok (int tok) {
   const int old_len = len();
   const int j = old_len + 1;
   tokseq.push_back(tok);
-  Cell* j_cell = new Cell (grammar, tok, j);
+  CellPtr j_cell = new Cell (grammar, tok, j);
   cell.push_back (j_cell);
   for (int i = old_len; i >= 0; --i)
     for (int k = i; k <= j; ++k)
@@ -70,7 +71,7 @@ void Matrix::push_tok (int tok) {
 
 int Matrix::pop_tok() {
   const int last_tok = tokseq.back();
-  const Cell* last_cell = cell.back();
+  const CellPtr last_cell = cell.back();
   tokseq.pop_back();
   cell.pop_back();
   delete last_cell;
@@ -100,8 +101,8 @@ sub new_Inside {
 	    }
 	}
     }
-    while (my ($sym, $p) = each %p_empty) { $cpp_grammar->set_p_empty ($sym, $p) }
-    while (my ($sym, $p) = each %p_nonempty) { $cpp_grammar->set_p_nonempty ($sym, $p) }
+    while (my ($sym, $p) = each %{$gertie->p_empty}) { $cpp_grammar->set_p_empty ($sym, $p) }
+    while (my ($sym, $p) = each %{$gertie->p_nonempty}) { $cpp_grammar->set_p_nonempty ($sym, $p) }
 
     my $self = $class->SUPER::new_Inside ( $gertie,
 					   undef,  # don't pass tokseq to super
