@@ -361,6 +361,11 @@ sub player_agent {
     return $self->agents->[0];
 }
 
+sub n_symbols {
+    my ($self) = @_;
+    return @{$self->sym_name} + 0;
+}
+
 # Index rules
 sub index_rules {
     my ($self) = @_;
