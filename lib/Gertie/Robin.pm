@@ -1,4 +1,4 @@
-package Robin;
+package Gertie::Robin;
 use Moose;
 use Term::ANSIColor;
 use Carp;

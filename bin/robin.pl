@@ -7,7 +7,7 @@ use Term::ANSIColor;
 use lib abs_path("$FindBin::Bin/../lib");
 
 
-use Robin;
+use Gertie::Robin;
 
 $SIG{'INT'} = sub {
     print color('reset'), "\n";
@@ -31,12 +31,13 @@ if (@ARGV && !defined $grammar_file) {
 
 die "You must specify a filename" unless defined $grammar_file;
 
-my $robin = Robin->new_from_file ($grammar_file,
-				  'verbose' => $verbose,
-				  defined($text_file) ? ('text_filename' => $text_file) : (),  # don't override default
-				  'trace_filename' => $trace_file,
-				  'rand_seed' => $seed,
-				  'max_rounds' => $rounds);
+my $robin = Gertie::Robin->new_from_file
+    ($grammar_file,
+     'verbose' => $verbose,
+     defined($text_file) ? ('text_filename' => $text_file) : (),  # don't override default
+     'trace_filename' => $trace_file,
+     'rand_seed' => $seed,
+     'max_rounds' => $rounds);
 
 $robin->play;
 
