@@ -25,13 +25,6 @@ sub new_robin {
 			       'choice_text' => undef,
 			       'narrative_text' => undef,
 
-			       'log_color' => color('red on_black'),
-			       'input_color' => color('white on_black'),
-			       'choice_selector_color' => color('white on_black'),
-			       'narrative_color' => color('cyan on_black'),
-			       'choice_color' => color('white on_blue'),
-			       'meta_color' => color('yellow on_black'),
-
 			       'turns' => {},
 			       'max_rounds' => undef,
 
@@ -40,10 +33,39 @@ sub new_robin {
 			       'trace_filename' => undef,
 			       'text_filename' => undef,
 
+			       'use_color' => 0,
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
     return $self;
+}
+
+sub set_cool_color_scheme {
+    my ($self) = @_;
+    my %color = ('log_color' => color('red on_black'),
+		 'input_color' => color('white on_black'),
+		 'choice_selector_color' => color('white on_black'),
+		 'narrative_color' => color('cyan on_black'),
+		 'choice_color' => color('white on_blue'),
+		 'meta_color' => color('yellow on_black'),
+		 'reset_color' => color('reset'));
+    while (my ($col, $val) = each %color) {
+	$self->{$col} = $val;
+    }
+}
+
+sub set_boring_color_scheme {
+    my ($self) = @_;
+    my @color = ('log_color' ,
+		 'input_color' ,
+		 'choice_selector_color' ,
+		 'narrative_color' ,
+		 'choice_color' ,
+		 'meta_color',
+		 'reset_color');
+    for my $col (@color) {
+	$self->{$col} = color('reset');
+    }
 }
 
 sub new_from_file {
@@ -115,8 +137,9 @@ sub play {
 
     my $narrative_text = $self->narrative_text;
 
+    if ($self->use_color) { $self->set_cool_color_scheme } else { $self->set_boring_color_scheme }
     my $log_color = $self->log_color;
-    my $reset_nl = color('reset') . "\n";
+    my $reset_nl = $self->reset_color . "\n";
     my @begin_log = ($log_color, "--- BEGIN DEBUG LOG", $reset_nl);
     my @end_log = ($log_color, "--- END DEBUG LOG", $reset_nl);
     print @begin_log if $self->verbose;
@@ -244,9 +267,9 @@ sub player_choice {
 		"\n",
 		$meta_color,
 		"Your choices:\n",
-		map ((' ', $choice_selector_color, $_ + 1, '.', color('reset'), ' ',
+		map ((' ', $choice_selector_color, $_ + 1, '.', $self->reset_color, ' ',
 		      $menu_color[$_], $menu[$_],
-		      color('reset'), "\n"),
+		      $self->reset_color, "\n"),
 		     0..$#menu)
 		if $display_choices;
 	    print
@@ -261,13 +284,13 @@ sub player_choice {
 
 	    if ($input =~ /^\d+/ && $input >= 1 && $input <= @menu) {
 		$n = $input - 1;
-		print $menu_color[$n], $menu[$n], color('reset'), "\n";
+		print $menu_color[$n], $menu[$n], $self->reset_color, "\n";
 	    } elsif (my @match = length($input) ? grep ($menu[$_] =~ /$quoted_input/i, 0..$#menu) : ()) {
 		if (@match == 1) {
 		    ($n) = @match;
 		    print
-			$meta_color, "(Choice ", $n+1, ")", color('reset'), " ",
-			$menu_color[$n], $menu[$n], color('reset'), "\n\n";
+			$meta_color, "(Choice ", $n+1, ")", $self->reset_color, " ",
+			$menu_color[$n], $menu[$n], $self->reset_color, "\n\n";
 		} else {
 		    my $last = pop(@match);
 		    print

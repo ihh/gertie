@@ -17,13 +17,15 @@ $SIG{'INT'} = sub {
 };
 
 my $verbose = 0;
+my $color = 0;
 my ($grammar_file, $text_file, $trace_file, $seed, $rounds);
 GetOptions ("grammar=s"   => \$grammar_file,
 	    "text=s"   => \$text_file,
 	    "trace=s"  => \$trace_file,
 	    "verbose=i"  => \$verbose,
 	    "seed=i"  => \$seed,
-	    "rounds=i"  => \$rounds);
+	    "rounds=i"  => \$rounds,
+	    "color" => \$color);
 
 if (@ARGV && !defined $grammar_file) {
     $grammar_file = shift;
@@ -37,7 +39,8 @@ my $robin = Gertie::Robin->new_from_file
      defined($text_file) ? ('text_filename' => $text_file) : (),  # don't override default
      'trace_filename' => $trace_file,
      'rand_seed' => $seed,
-     'max_rounds' => $rounds);
+     'max_rounds' => $rounds,
+     'use_color' => $color);
 
 $robin->play;
 
