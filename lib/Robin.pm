@@ -2,6 +2,7 @@ package Robin;
 use Moose;
 use Term::ANSIColor;
 use Carp;
+use FileHandle;
 
 use AutoHash;
 extends 'AutoHash';
@@ -15,6 +16,8 @@ use strict;
 sub new_robin {
     my ($class, $gertie, @args) = @_;
     my $self = AutoHash->new ( 'gertie' => $gertie,
+			       'rand_seed' => undef,
+
 			       'seq' => [],
 			       'tokseq' => [],
 			       'inside' => undef,
@@ -29,8 +32,14 @@ sub new_robin {
 			       'choice_color' => color('white on_blue'),
 			       'meta_color' => color('yellow on_black'),
 
-			       'options_per_page' => 3,
 			       'turns' => {},
+			       'max_rounds' => undef,
+
+			       'options_per_page' => 3,
+
+			       'trace_filename' => undef,
+			       'text_filename' => undef,
+
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
@@ -40,8 +49,8 @@ sub new_robin {
 sub new_from_file {
     my ($class, $filename, @args) = @_;
     my $gertie = Gertie->new_from_file ($filename);
-    my $self = $class->new_robin ($gertie, 'text_file' => "$filename.text", @args);
-    $self->load_text_from_file ($self->text_file) if -e $self->text_file;
+    my $self = $class->new_robin ($gertie, 'text_filename' => "$filename.text", @args);
+    $self->load_text_from_file ($self->text_filename) if -e $self->text_filename;
     # return
     return $self;
 }
@@ -112,10 +121,21 @@ sub play {
     my @end_log = ($log_color, "--- END DEBUG LOG", $reset_nl);
     print @begin_log if $self->verbose;
 
-  GAMELOOP: while (1) {
+    $self->rand_seed (time) unless defined $self->rand_seed;
+    srand ($self->rand_seed);
+    print $log_color, "Random seed: ", $self->rand_seed, $reset_nl if $self->verbose;
+
+    my $trace_fh;
+    if (defined $self->trace_filename) {
+	$trace_fh = FileHandle->new (">".$self->trace_filename) or confess "Couldn't open ", $self->trace_filename, ": $!";
+	autoflush $trace_fh 1;
+    }
+
+  GAMELOOP: for (my $round = 0; !defined($self->max_rounds) || $round < $self->max_rounds; ++$round) {
     ROUNDROBIN: for my $agent (@{$self->gertie->agents}) {
 	# status/log messages
 	if ($self->verbose) {
+	    print $log_color, "Round: ", $round + 1, $reset_nl;
 	    print $log_color, "Turn: $agent", $reset_nl;
 	    print $log_color, "Sequence: (@{$self->seq})", $reset_nl;
 	    print $log_color, "Inside matrix:\n", $self->inside->to_string, $reset_nl if $self->verbose > 9;
@@ -133,7 +153,7 @@ sub play {
 
 	# get next terminal from appropriate agent
 	my $next_term;
-	    print @end_log if $self->verbose;
+	print @end_log if $self->verbose;
 	if ($agent eq $self->gertie->player_agent) {
 	    $next_term = $self->player_choice (@next_term);
 	} else {
@@ -144,6 +164,7 @@ sub play {
 	++$self->turns->{$agent};
 	push @{$self->seq}, $next_term;
 	push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
+	if (defined $trace_fh) { print $trace_fh "$next_term\n" }
 
 	# print narrative text
 	print
@@ -161,6 +182,12 @@ sub play {
 	$self->inside->push_sym ($next_term);
     }
   }
+
+    print @end_log if $self->verbose;
+
+    if (defined $trace_fh) {
+	$trace_fh->close or confess "Couldn't close ", $self->trace_filename, ": $!";
+    }
 }
 
 sub player_choice {
