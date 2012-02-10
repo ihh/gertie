@@ -121,32 +121,32 @@ sub new_Inside {
 
 }
 
-# sub get_p {
-#     my ($self, $i, $j, $sym) = @_;
-#     confess "get_p out of bounds"
-# 	if $i < 0 || $i > $j || $j > $self->len || $sym < 0 || $sym >= $self->gertie->n_symbols;
-#     return $self->cpp_matrix->get_p ($i, $j, $sym);
-# }
-# 
-# sub get_q {
-#     my ($self, $i, $sym) = @_;
-#     confess "get_q out of bounds"
-# 	if $i < 0 || $i >= $self->len || $sym < 0 || $sym >= $self->gertie->n_symbols;
-#     return $self->cpp_matrix->get_q ($i, $sym);
-# }
-# 
-# sub push_tok {
-#     my ($self, @new_tok) = @_;
-#     for my $tok (@new_tok) {
-# 	$self->cpp_matrix->push_tok ($tok);
-#    }
-# }
-# 
-# sub pop_tok {
-#     my ($self) = @_;
-#     confess "Attempt to pop empty matrix" if $self->len == 0;
-#     return $self->cpp_matrix->pop_tok();
-# }
-# 
+sub get_p {
+    my ($self, $i, $j, $sym) = @_;
+    confess "get_p out of bounds"
+	if $i < 0 || $i > $j || $j > $self->len || $sym < 0 || $sym >= $self->gertie->n_symbols;
+    return $self->cpp_matrix->get_p ($i, $j, $sym);
+}
+
+sub get_q {
+    my ($self, $i, $sym) = @_;
+    confess "get_q out of bounds"
+	if $i < 0 || $i >= $self->len || $sym < 0 || $sym >= $self->gertie->n_symbols;
+    return $self->cpp_matrix->get_q ($i, $sym);
+}
+
+sub push_tok {
+    my ($self, @new_tok) = @_;
+    for my $tok (@new_tok) {
+	$self->cpp_matrix->push_tok ($tok);
+   }
+}
+
+sub pop_tok {
+    my ($self) = @_;
+    confess "Attempt to pop empty matrix" if $self->len == 0;
+    return $self->cpp_matrix->pop_tok();
+}
+
 1;
  
