@@ -6,8 +6,7 @@ use Gertie;
 use Gertie::Inside;
 extends 'Gertie::Inside';
 
-require Gertie::Inside::Inline::Parser;
-use Parser;
+use Gertie::Inside::Inline::Parser;
 
 # constructor
 sub new_Inside {

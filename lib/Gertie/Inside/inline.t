@@ -6,6 +6,8 @@ use FindBin;
 use lib abs_path("$FindBin::Bin/../..");  # while resident in lib/Gertie/Inline/ instead of t/
 
 use Gertie;
+use Gertie::Inside::Inline;
+use Gertie::Inside::Inline::Parser;
 
 my @log;
 sub test {
