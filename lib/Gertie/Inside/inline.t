@@ -2,7 +2,8 @@
 
 use Cwd qw(abs_path);
 use FindBin;
-use lib abs_path("$FindBin::Bin/../lib");
+#use lib abs_path("$FindBin::Bin/../lib");
+use lib abs_path("$FindBin::Bin/../..");  # while resident in lib/Gertie/Inline/ instead of t/
 
 use Gertie;
 
