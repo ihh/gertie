@@ -43,6 +43,12 @@ sub new_Inside {
 
 }
 
+# destructor
+sub DESTROY {
+    my ($self) = @_;
+    $self->{'cpp_parser'}->delete if defined $self->{'cpp_parser'};  # not sure if this is right
+}
+
 sub get_p {
     my ($self, $i, $j, $sym) = @_;
     confess "get_p out of bounds"

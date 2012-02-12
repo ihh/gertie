@@ -1,3 +1,6 @@
+#ifndef PARSER_INCLUDED
+#define PARSER_INCLUDED
+
 #include <vector>
 using namespace std;
 
@@ -46,3 +49,6 @@ private:
   vector<CellPtr> cell;
   vector<int> tokseq;
 };
+
+#endif /* PARSER_INCLUDED */
+
