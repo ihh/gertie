@@ -33,11 +33,14 @@ void *SafeCalloc(size_t count, size_t size) {
 
 
 /* parser */
-#define cell_p(cell,i,j,sym) cell->p[sym * (j + 1) + i]
-#define cell_q(cell,i,j,sym) cell->q[sym * (j + 1) + i]
+#define cell_get_p(cell,i,j,sym) cell->p[sym * (j + 1) + i]
+#define cell_get_q(cell,i,j,sym) cell->q[sym * (j + 1) + i]
 
-#define cell_inc_p(cell,i,j,sym,inc) cell_p(cell,i,j,sym) += inc
-#define cell_inc_q(cell,i,j,sym,inc) cell_q(cell,i,j,sym) += inc
+#define cell_inc_p(cell,i,j,sym,inc) cell_get_p(cell,i,j,sym) += inc
+#define cell_inc_q(cell,i,j,sym,inc) cell_get_q(cell,i,j,sym) += inc
+
+#define parser_get_p(parser,i,j,sym) cell_get_p (parser->cell[j], i, j, sym)
+#define parser_get_q(parser,i,sym) cell_get_q (parser->cell[parser->len], i, parser->len, sym)
 
 Cell* cellNew (Parser *parser, int j) {
   Cell *cell;
@@ -46,15 +49,15 @@ Cell* cellNew (Parser *parser, int j) {
   cell->p = SafeMalloc (sizeof (double) * parser->symbols * (j+1));
   cell->q = SafeMalloc (sizeof (double) * parser->symbols * (j+1));
   for (sym = 0; sym < parser->symbols; ++sym) {
-    cell_p(cell,j,j,sym) = parser->p_empty[sym];
-    cell_q(cell,j,j,sym) = 1. - parser->p_empty[sym];
+    cell_get_p(cell,j,j,sym) = parser->p_empty[sym];
+    cell_get_q(cell,j,j,sym) = 1. - parser->p_empty[sym];
   }
 }
 
 Cell* cellNewTok (Parser *parser, int j, int tok) {
   Cell *cell;
   cell = cellNew (parser, j);
-  cell_p (cell, j-1, j, tok) = 1.;
+  cell_get_p (cell, j-1, j, tok) = 1.;
 }
 
 void cellDelete (Cell* cell) {
@@ -99,9 +102,6 @@ void parserSetRule (Parser *parser, int rule_index, int lhs_sym, int rhs1_sym, i
 
 void parserSetEmptyProb (Parser *parser, int sym, double p) { parser->p_empty[sym] = p; }
 int parserSeqLen (Parser *parser) { return parser->len; }
-
-#define parser_get_p(parser,i,j,sym) cell_get_p (parser->cell[j], i, j, sym)
-#define parser_get_q(parser,i,sym) cell_get_q (parser->cell[parser->len], i, parser->len, sym)
 
 double parserGetP (Parser *parser, int i, int j, int sym) { return parser_get_p(parser,i,j,sym); }
 double parserGetQ (Parser *parser, int i, int sym) { return parser_get_q(parser,i,sym); }
