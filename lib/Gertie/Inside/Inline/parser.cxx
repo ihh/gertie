@@ -1,7 +1,4 @@
-use Inline CPP => <<'END';
-
-#include <vector>
-using namespace std;
+#include "parser.h"
 
 struct Rule {
   Rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob)
@@ -35,31 +32,20 @@ private:
 };
 typedef Cell* CellPtr;
 
-class Parser {
-public:
-  // constructor, destructor
-  Parser (int symbols) : symbols(symbols), p_empty(symbols,0.), p_nonempty(symbols,0.) { }
-  ~Parser() { for (vector<CellPtr>::const_iterator c = cell.begin(); c != cell.end(); ++c) delete *c; }
-  // builder methods
-  void add_rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob)
-  { rule.push_back (Rule (lhs_sym, rhs1_sym, rhs2_sym, rule_prob)); }
-  void set_p_empty (int sym, double p) { p_empty[sym] = p; }
-  void set_p_nonempty (int sym, double p) { p_nonempty[sym] = p; }
-  void init_matrix() { cell.push_back (new Cell(p_empty,p_nonempty)); }
-  // accessors
-  int len() { return tokseq.size(); }
-  double get_p(int i,int j,int sym) { return cell[j]->get_p(i,sym); }
-  double get_q(int i,int sym) { return cell.back()->get_q(i,sym); }
-  // push/pop
-  void push_tok(int tok);
-  int pop_tok();
-private:
-  int symbols;
-  vector<Rule> rule;
-  vector<double> p_empty, p_nonempty;
-  vector<CellPtr> cell;
-  vector<int> tokseq;
-};
+// constructor, destructor
+Parser::Parser (int symbols) : symbols(symbols), p_empty(symbols,0.), p_nonempty(symbols,0.) { }
+~Parser::Parser() { for (vector<CellPtr>::const_iterator c = cell.begin(); c != cell.end(); ++c) delete *c; }
+// builder methods
+void Parser::add_rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob)
+{ rule.push_back (Rule (lhs_sym, rhs1_sym, rhs2_sym, rule_prob)); }
+void Parser::set_p_empty (int sym, double p) { p_empty[sym] = p; }
+void Parser::set_p_nonempty (int sym, double p) { p_nonempty[sym] = p; }
+void Parser::init_matrix() { cell.push_back (new Cell(p_empty,p_nonempty)); }
+// accessors
+int Parser::len() { return tokseq.size(); }
+double Parser::get_p(int i,int j,int sym) { return cell[j]->get_p(i,sym); }
+double Parser::get_q(int i,int sym) { return cell.back()->get_q(i,sym); }
+// push/pop
 
 void Parser::push_tok (int tok) {
   const int old_len = len();
@@ -87,7 +73,3 @@ int Parser::pop_tok() {
   delete last_cell;
   return last_tok;
 }
-
-END
-
-1;
