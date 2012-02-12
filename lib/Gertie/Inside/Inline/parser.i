@@ -1,5 +1,5 @@
 // File : parser.i
-%module Parser
+%module parser
 %{
 #include "parser.h"
 %}
