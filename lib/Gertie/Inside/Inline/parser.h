@@ -1,54 +1,35 @@
 #ifndef PARSER_INCLUDED
 #define PARSER_INCLUDED
 
-#include <vector>
-using namespace std;
-
-struct Rule {
-  Rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob);
+typedef struct Rule {
   int lhs_sym, rhs1_sym, rhs2_sym;
   double rule_prob;
-};
+} Rule;
 
-class Cell {
-public:
-  Cell (const vector<double>& p_empty, const vector<double>& p_nonempty);
-  Cell (const vector<double>& p_empty, const vector<double>& p_nonempty, int tok, int j);
-  double get_p (int i, int sym);
-  double get_q (int i, int sym);
-  void inc_p (int i, int sym, double inc);
-  void inc_q (int i, int sym, double inc);
-private:
-  void init (const vector<double>& p_empty, const vector<double>& p_nonempty);
-  int j;
-  vector<vector<double> > p, q;
-};
-typedef Cell* CellPtr;
+typedef struct Cell {
+  int j, symbols;
+  double *p, *q;
+} Cell;
 
-class Parser {
-public:
-  // constructor, destructor
-  Parser (int symbols);
-  ~Parser();
-  // builder methods
-  void add_rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob);
-  void set_p_empty (int sym, double p);
-  void set_p_nonempty (int sym, double p);
-  void init_matrix();
-  // accessors
-  int len();
-  double get_p(int i,int j,int sym);
-  double get_q(int i,int sym);
-  // push/pop
-  void push_tok(int tok);
-  int pop_tok();
-private:
-  int symbols;
-  vector<Rule> rule;
-  vector<double> p_empty, p_nonempty;
-  vector<CellPtr> cell;
-  vector<int> tokseq;
-};
+typedef struct Parser {
+  int symbols, rules, len;
+  Rule *rule;
+  double *p_empty, *p_nonempty;
+  Cell *cell;
+  int *tokseq;
+} Parser;
+
+Parser* parserNew (int symbols, int rules);
+void parserDelete (Parser *parser);
+void parserSetRule (Parser *parser, int rule_index, int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob);
+void parserSetEmptyProb (Parser *parser, int sym, double prob);
+void parserInitMatrix (Parser *parser);
+int parserSeqLen (Parser *parser);
+double parserGetP (Parser *parser, int i, int j, int sym);
+double parserGetQ (Parser *parser, int i, int sym);
+void parserPushTok (Parser *parser, int sym);
+int parserPopTok (Parser *parser);
+
 
 #endif /* PARSER_INCLUDED */
 

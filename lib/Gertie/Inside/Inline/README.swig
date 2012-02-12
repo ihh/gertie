@@ -5,7 +5,7 @@ g++ `perl -MConfig -e 'print $Config{lddlflags}'` parser.o parser_wrap.o -o pars
 perl -e 'use parser'
 
 # OS X
-swig -c++ -perl5 parser.i
+swig -c++ -perl parser.i
 g++ -c parser.cxx parser_wrap.cxx `perl -MExtUtils::Embed -e ccopts`
 g++ -bundle -o parser.bundle parser.o parser_wrap.o `perl -MExtUtils::Embed -e ldopts`
 perl -e 'use parser'
