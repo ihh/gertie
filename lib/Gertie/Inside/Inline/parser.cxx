@@ -1,40 +1,29 @@
 #include "parser.h"
 
-struct Rule {
-  Rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob)
-    : lhs_sym(lhs_sym), rhs1_sym(rhs1_sym), rhs2_sym(rhs2_sym), rule_prob(rule_prob) { }
-  int lhs_sym, rhs1_sym, rhs2_sym;
-  double rule_prob;
-};
+Rule::Rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob)
+  : lhs_sym(lhs_sym), rhs1_sym(rhs1_sym), rhs2_sym(rhs2_sym), rule_prob(rule_prob) { }
 
-struct Cell {
-public:
-  Cell (const vector<double>& p_empty, const vector<double>& p_nonempty)
-    : j(0), p(1,vector<double>(p_empty.size(),0.)), q(1,vector<double>(p_empty.size(),0.)) {
-    init (p_empty, p_nonempty);
-  }
-  Cell (const vector<double>& p_empty, const vector<double>& p_nonempty, int tok, int j)
-    : j(j), p(j+1,vector<double>(p_empty.size(),0.)), q(j+1,vector<double>(p_empty.size(),0.)) {
-    init (p_empty, p_nonempty);
-    p[j-1][tok] = 1.;
-  }
-  double get_p (int i, int sym) { return p[i][sym]; }
-  double get_q (int i, int sym) { return q[i][sym]; }
-  void inc_p (int i, int sym, double inc) { p[i][sym] += inc; }
-  void inc_q (int i, int sym, double inc) { q[j][sym] += inc; }
-private:
-  void init (const vector<double>& p_empty, const vector<double>& p_nonempty) {
-    p[j] = p_empty;
-    q[j] = p_nonempty;
-  }
-  int j;
-  vector<vector<double> > p, q;
-};
-typedef Cell* CellPtr;
+Cell::Cell (const vector<double>& p_empty, const vector<double>& p_nonempty)
+  : j(0), p(1,vector<double>(p_empty.size(),0.)), q(1,vector<double>(p_empty.size(),0.)) {
+  init (p_empty, p_nonempty);
+}
+Cell::Cell (const vector<double>& p_empty, const vector<double>& p_nonempty, int tok, int j)
+  : j(j), p(j+1,vector<double>(p_empty.size(),0.)), q(j+1,vector<double>(p_empty.size(),0.)) {
+  init (p_empty, p_nonempty);
+  p[j-1][tok] = 1.;
+}
+double Cell::get_p (int i, int sym) { return p[i][sym]; }
+double Cell::get_q (int i, int sym) { return q[i][sym]; }
+void Cell::inc_p (int i, int sym, double inc) { p[i][sym] += inc; }
+void Cell::inc_q (int i, int sym, double inc) { q[j][sym] += inc; }
+void Cell::init (const vector<double>& p_empty, const vector<double>& p_nonempty) {
+  p[j] = p_empty;
+  q[j] = p_nonempty;
+}
 
 // constructor, destructor
 Parser::Parser (int symbols) : symbols(symbols), p_empty(symbols,0.), p_nonempty(symbols,0.) { }
-~Parser::Parser() { for (vector<CellPtr>::const_iterator c = cell.begin(); c != cell.end(); ++c) delete *c; }
+Parser::~Parser() { for (vector<CellPtr>::const_iterator c = cell.begin(); c != cell.end(); ++c) delete *c; }
 // builder methods
 void Parser::add_rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob)
 { rule.push_back (Rule (lhs_sym, rhs1_sym, rhs2_sym, rule_prob)); }

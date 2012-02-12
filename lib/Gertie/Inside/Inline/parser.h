@@ -1,6 +1,27 @@
 #include <vector>
 using namespace std;
 
+struct Rule {
+  Rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob);
+  int lhs_sym, rhs1_sym, rhs2_sym;
+  double rule_prob;
+};
+
+class Cell {
+public:
+  Cell (const vector<double>& p_empty, const vector<double>& p_nonempty);
+  Cell (const vector<double>& p_empty, const vector<double>& p_nonempty, int tok, int j);
+  double get_p (int i, int sym);
+  double get_q (int i, int sym);
+  void inc_p (int i, int sym, double inc);
+  void inc_q (int i, int sym, double inc);
+private:
+  void init (const vector<double>& p_empty, const vector<double>& p_nonempty);
+  int j;
+  vector<vector<double> > p, q;
+};
+typedef Cell* CellPtr;
+
 class Parser {
 public:
   // constructor, destructor
