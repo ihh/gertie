@@ -1,63 +1,120 @@
 #include "parser.h"
 
-Rule::Rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob)
-  : lhs_sym(lhs_sym), rhs1_sym(rhs1_sym), rhs2_sym(rhs2_sym), rule_prob(rule_prob) { }
+#define cell_p(cell,i,sym) cell->p[sym * (cell->j + 1) + i]
+#define cell_q(cell,i,sym) cell->q[sym * (cell->j + 1) + i]
 
-Cell::Cell (const vector<double>& p_empty, const vector<double>& p_nonempty)
-  : j(0), p(1,vector<double>(p_empty.size(),0.)), q(1,vector<double>(p_empty.size(),0.)) {
-  init (p_empty, p_nonempty);
-}
-Cell::Cell (const vector<double>& p_empty, const vector<double>& p_nonempty, int tok, int j)
-  : j(j), p(j+1,vector<double>(p_empty.size(),0.)), q(j+1,vector<double>(p_empty.size(),0.)) {
-  init (p_empty, p_nonempty);
-  p[j-1][tok] = 1.;
-}
-double Cell::get_p (int i, int sym) { return p[i][sym]; }
-double Cell::get_q (int i, int sym) { return q[i][sym]; }
-void Cell::inc_p (int i, int sym, double inc) { p[i][sym] += inc; }
-void Cell::inc_q (int i, int sym, double inc) { q[j][sym] += inc; }
-void Cell::init (const vector<double>& p_empty, const vector<double>& p_nonempty) {
-  p[j] = p_empty;
-  q[j] = p_nonempty;
+#define cell_inc_p(cell,i,sym,inc) cell_p(cell,i,sym) += inc
+#define cell_inc_q(cell,i,sym,inc) cell_q(cell,i,sym) += inc
+
+Cell* cellNew (Parser *parser, int j) {
+  Cell *cell;
+  int sym;
+  cell = SafeMalloc (sizeof (Cell));
+  cell->j = j;
+  cell->p = SafeMalloc (sizeof (double) * parser->symbols * (j+1));
+  cell->q = SafeMalloc (sizeof (double) * parser->symbols * (j+1));
+  for (int sym = 0; sym < parser->symbols; ++sym) {
+    cell_p(cell,j,sym) = parser->p_empty[sym];
+    cell_q(cell,j,sym) = 1. - parser->p_empty[sym];
+  }
 }
 
-// constructor, destructor
-Parser::Parser (int symbols) : symbols(symbols), p_empty(symbols,0.), p_nonempty(symbols,0.) { }
-Parser::~Parser() { for (vector<CellPtr>::const_iterator c = cell.begin(); c != cell.end(); ++c) delete *c; }
-// builder methods
-void Parser::add_rule (int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob)
-{ rule.push_back (Rule (lhs_sym, rhs1_sym, rhs2_sym, rule_prob)); }
-void Parser::set_p_empty (int sym, double p) { p_empty[sym] = p; p_nonempty[sym] = 1 - p; }
-void Parser::init_matrix() { cell.push_back (new Cell(p_empty,p_nonempty)); }
-// accessors
-int Parser::len() { return tokseq.size(); }
-double Parser::get_p(int i,int j,int sym) { return cell[j]->get_p(i,sym); }
-double Parser::get_q(int i,int sym) { return cell.back()->get_q(i,sym); }
-// push/pop
+Cell* cellNewTok (Parser *parser, int j, int tok) {
+  Cell *cell;
+  cell = cellNew (parser, j);
+  cell_p (cell, j-1, tok) = 1.;
+}
 
-void Parser::push_tok (int tok) {
-  const int old_len = len();
-  const int j = old_len + 1;
-  tokseq.push_back(tok);
-  CellPtr j_cell = new Cell (p_empty, p_nonempty, tok, j);
-  cell.push_back (j_cell);
+void cellDelete (Cell* cell) {
+  SafeFree (cell->p);
+  SafeFree (cell->q);
+  SafeFree (cell);
+}
+
+Parser* parserNew (int symbols, int rules) {
+  Parser* parser;
+  parser = SafeMalloc (sizeof (Parser));
+  parser->symbols = symbols;
+  parser->rules = rules;
+  parser->len = 0;
+  parser->alloc = 1;
+  parser->rule = SafeMalloc (rules * sizeof (Rule));
+  parser->p_empty = SafeMalloc (symbols * sizeof (double));
+  parser->cell = SafeMalloc (sizeof (Cell*));
+  parser->tokseq = NULL;
+  parser->cell[0] = cellNew (parser, 0);
+  return parser;
+}
+
+void parserDelete (Parser* parser) {
+  int n;
+  for (n = 0; n < parser->alloc; ++n)
+    SafeFree (parser->cell[n]);
+  if (cell->tokseq)
+    SafeFree (parser->tokseq);
+  SafeFree (parser->rule);
+  SafeFree (parser->p_empty);
+}
+
+void parserSetRule (Parser *parser, int rule_index, int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob) { 
+  Rule *rule;
+  rule = parser->rule + rule_index;
+  rule->lhs_sym = lhs_sym;
+  rule->rhs1_sym = rhs1_sym;
+  rule->rhs2_sym = rhs2_sym;
+  rule->rule_prob = rule_prob;
+}
+
+void parserSetEmptyProb (Parser *parser, int sym, double p) { parser->p_empty[sym] = p; }
+int parserSeqLen (Parser *parser) { return parser->len; }
+double parserGetP (Parser *parser, int i, int j, int sym) { return cell_get_p (parser->cell[j], i, sym); }
+double parserGetQ (Parser *parser, int i, int sym) { return cell_get_p (parser->cell[parser->len], i, sym); }
+
+void parserPushTok (Parser *parser, int tok) {
+  int old_len, j, j_cell, i, k, r;
+  Cell *j_cell, **new_cell;
+  int *new_tokseq;
+  Rule *rule, *rule_end;
+
+  old_len = parser->len;
+  j = old_len + 1;
+  if (j >= parser->alloc) {
+    parser->alloc *= 2;
+    new_cell = SafeMalloc (parser->alloc * sizeof(Cell) + 1);
+    new_tokseq = SafeMalloc (parser->alloc * sizeof(int));
+    for (i = 0; i <= old_len; ++i)
+      new_cell[i] = parser->cell[i];
+    for (i = 0; i < old_len; ++i)
+      new_tokseq[i] = parser->tokseq[i];
+    SafeFree (parser->cell);
+    SafeFree (parser->tokseq);
+    parser->cell = new_cell;
+    parser->tokseq = new_tokseq;
+  }
+  parser->tokseq[old_len] = tok;
+  j_cell = cellNewTok (parser, j, tok);
+  cell[j] = j_cell;
+
+  rule_end = parser->rule + parser->rules;
+  for (i = old_len; i >= 0; --i)
+    for (k = i; k <= j; ++k) {
+      for (rule = parser->rule; rule != rule_end; ++rule)
+	j_cell->inc_p (i, rule->lhs_sym, get_p(i,k,rule->rhs1_sym) * get_p(k,j,rule->rhs2_sym) * rule->rule_prob);
+
   for (int i = old_len; i >= 0; --i)
-    for (int k = i; k <= j; ++k)
-      for (vector<Rule>::const_iterator r = rule.begin(); r != rule.end(); ++r)
-	j_cell->inc_p (i, r->lhs_sym, get_p(i,k,r->rhs1_sym) * get_p(k,j,r->rhs2_sym) * r->rule_prob);
-  for (int i = old_len; i >= 0; --i)
-    for (vector<Rule>::const_iterator r = rule.begin(); r != rule.end(); ++r) {
+    for (rule = parser->rule; rule != rule_end; ++rule)
       for (int k = i; k <= j; ++k)
-	j_cell->inc_q (i, r->lhs_sym, get_p(i,k,r->rhs1_sym) * get_q(k,r->rhs2_sym) * r->rule_prob);
-      j_cell->inc_q (i, r->lhs_sym, get_q(i,r->rhs2_sym) * r->rule_prob);
+	j_cell->inc_q (i, rule->lhs_sym, get_p(i,k,rule->rhs1_sym) * get_q(k,rule->rhs2_sym) * rule->rule_prob);
+      j_cell->inc_q (i, rule->lhs_sym, get_q(i,rule->rhs2_sym) * rule->rule_prob);
     }
 }
 
-int Parser::pop_tok() {
-  const int last_tok = tokseq.back();
-  const CellPtr last_cell = cell.back();
-  tokseq.pop_back();
-  cell.pop_back();
-  delete last_cell;
+int parserPopTok (Parser* parser) {
+  int last_tok;
+  CellPtr last_cell;
+  last_tok = parser->tokseq[parser->len-1];
+  last_cell = parser->cell[parser->len];
+  --parser->len;
+  SafeFree (last_cell);
   return last_tok;
 }
