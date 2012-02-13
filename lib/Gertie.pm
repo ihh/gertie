@@ -37,7 +37,7 @@ sub new_gertie {
 			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)',
 			       'quantifier_regex' => "($quant_regex)".'$',
 
-			       'inside_class' => 'Gertie::Inside::Native',
+			       'inside_class' => 'Gertie::Inside::PerlParser',
 
 			       'verbose' => 0,
 			       @args );

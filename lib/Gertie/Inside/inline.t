@@ -3,11 +3,9 @@
 use Cwd qw(abs_path);
 use FindBin;
 #use lib abs_path("$FindBin::Bin/../lib");
-use lib abs_path("$FindBin::Bin/../..");  # while resident in lib/Gertie/Inline/ instead of t/
+use lib abs_path("$FindBin::Bin/../..");  # while resident in lib/Gertie/Inside/ instead of t/
 
 use Gertie;
-use Gertie::Inside::Inline;
-use Gertie::Inside::Inline::Parser;
 
 my @log;
 sub test {
@@ -24,7 +22,7 @@ sub dump_log {
 
 
 my $g = Gertie->new_from_string ('a->b c;b->d;c->end;');
-$g->inside_class ('Gertie::Inside::Inline');
+$g->inside_class ('Gertie::Inside::CParser');
 
 my $simparse = $g->simulate;
 test ($g->print_parse_tree($simparse), "(a->(b->d),(c->end))", "Simulated parse");
