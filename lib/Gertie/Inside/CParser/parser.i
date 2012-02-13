@@ -1,5 +1,5 @@
 // File : parser.i
-%module Swig
+%module parser
 %{
 #include "parser.h"
 %}

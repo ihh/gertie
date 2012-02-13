@@ -1,6 +1,9 @@
 
 all: parser.bundle
 
+clean:
+	rm *_wrap.* *.o *.bundle *~
+
 %_wrap.c: %.i %.h
 	swig -perl $*.i
 
