@@ -28,7 +28,7 @@ my $simparse = $g->simulate;
 test ($g->print_parse_tree($simparse), "(a->(b->d),(c->end))", "Simulated parse");
 
 my @seq = $g->tokenize ('d');
-my $pq = $g->prefix_Inside (\@seq);
+my $pq = $g->prefix_Inside (\@seq, 'verbose' => 99);
 my $inside = <<END;
 Prefix 1..: d=>1 b=>1 a=>1
 Inside (1,1): end=>1 c=>1

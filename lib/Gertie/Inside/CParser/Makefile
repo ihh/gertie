@@ -8,10 +8,13 @@ clean:
 	swig -perl $*.i
 
 %.o: %.c %_wrap.c
-	gcc -c $*.c $*_wrap.c `perl -MExtUtils::Embed -e ccopts`
+	gcc -Wall -c $*.c $*_wrap.c `perl -MExtUtils::Embed -e ccopts`
 
 %.bundle: %.o
-	gcc -bundle -o $*.bundle $*.o $*_wrap.o `perl -MExtUtils::Embed -e ldopts`
+	gcc -Wall -bundle -o $*.bundle $*.o $*_wrap.o `perl -MExtUtils::Embed -e ldopts`
+
+test: parser.c parser.h test.c
+	gcc -Wall -g -o test parser.c parser.h test.c
 
 .SECONDARY:
 
