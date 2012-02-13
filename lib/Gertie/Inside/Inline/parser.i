@@ -1,9 +1,8 @@
 // File : parser.i
-%module parser
+%module SwigInside
 %{
 #include "parser.h"
 %}
-
 
 Parser* parserNew (int symbols, int rules);
 void parserDelete (Parser *parser);
