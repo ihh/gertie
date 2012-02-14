@@ -11,7 +11,7 @@ typedef struct Cell {
 } Cell;
 
 typedef struct Parser {
-  int symbols, rules, len, alloc;
+  int symbols, rules, len, alloc, debug;
   Rule *rule;
   double *p_empty;
   Cell **cell;
@@ -20,6 +20,8 @@ typedef struct Parser {
 
 Parser* parserNew (int symbols, int rules);
 void parserDelete (Parser *parser);
+void parserDebug (Parser *parser);
+void parserPrintMatrix (Parser *parser);
 void parserSetRule (Parser *parser, int rule_index, int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob);
 void parserSetEmptyProb (Parser *parser, int sym, double prob);
 int parserSeqLen (Parser *parser);

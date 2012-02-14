@@ -48,6 +48,7 @@ sub get_q {
 # subroutine to extend Inside matrix
 sub push_tok {
     my ($self, @new_tok) = @_;
+    push @{$self->tokseq}, @new_tok;  # subclass method should always do this, even if it maintains a separate representation of tokseq
     confess "Attempt to use abstract superclass push_tok method";
 }
 

@@ -46,18 +46,20 @@ Cell* cellNew (Parser *parser, int j) {
   Cell *cell;
   int sym;
   cell = SafeMalloc (sizeof (Cell));
-  cell->p = SafeMalloc (sizeof (double) * parser->symbols * (j+1));
-  cell->q = SafeMalloc (sizeof (double) * parser->symbols * (j+1));
+  cell->p = SafeCalloc (parser->symbols * (j+1), sizeof (double));
+  cell->q = SafeCalloc (parser->symbols * (j+1), sizeof (double));
   for (sym = 0; sym < parser->symbols; ++sym) {
     cell_get_p(cell,j,j,sym) = parser->p_empty[sym];
     cell_get_q(cell,j,j,sym) = 1. - parser->p_empty[sym];
   }
+  return cell;
 }
 
 Cell* cellNewTok (Parser *parser, int j, int tok) {
   Cell *cell;
   cell = cellNew (parser, j);
   cell_get_p (cell, j-1, j, tok) = 1.;
+  return cell;
 }
 
 void cellDelete (Cell* cell) {
@@ -74,21 +76,37 @@ Parser* parserNew (int symbols, int rules) {
   parser->len = 0;
   parser->alloc = 1;
   parser->rule = SafeMalloc (rules * sizeof (Rule));
-  parser->p_empty = SafeMalloc (symbols * sizeof (double));
+  parser->p_empty = SafeCalloc (symbols, sizeof (double));
   parser->cell = SafeMalloc (sizeof (Cell*));
   parser->tokseq = NULL;
-  parser->cell[0] = cellNew (parser, 0);
+  parser->cell[0] = NULL;
   return parser;
 }
 
 void parserDelete (Parser* parser) {
   int n;
   for (n = 0; n < parser->alloc; ++n)
-    SafeFree (parser->cell[n]);
+    if (parser->cell[n])
+      SafeFree (parser->cell[n]);
   if (parser->tokseq)
     SafeFree (parser->tokseq);
   SafeFree (parser->rule);
   SafeFree (parser->p_empty);
+}
+
+void parserDebug (Parser* parser) {
+  parser->debug = 1;
+}
+
+void parserPrintMatrix (Parser *parser) {
+  int i, j, sym;
+  for (j = 0; j <= parser->len; ++j)
+    for (i = 0; i <= j; ++i)
+      for (sym = 0; sym < parser->symbols; ++sym)
+	printf ("p(i=%d,j=%d,sym=%d) = %g\n", i, j, sym, parser_get_p (parser, i, j, sym));
+  for (i = 0; i <= parser->len; ++i)
+    for (sym = 0; sym < parser->symbols; ++sym)
+      printf ("q(i=%d,sym=%d) = %g\n", i, sym, parser_get_q (parser, i, sym));
 }
 
 void parserSetRule (Parser *parser, int rule_index, int lhs_sym, int rhs1_sym, int rhs2_sym, double rule_prob) { 
@@ -107,17 +125,20 @@ double parserGetP (Parser *parser, int i, int j, int sym) { return parser_get_p(
 double parserGetQ (Parser *parser, int i, int sym) { return parser_get_q(parser,i,sym); }
 
 void parserPushTok (Parser *parser, int tok) {
-  int old_len, j, i, k, r;
+  int old_len, j, i, k;
   Cell *j_cell, **new_cell;
   int *new_tokseq;
   Rule *rule, *rule_end;
+
+  if (parser->cell[0] == NULL)
+    parser->cell[0] = cellNew (parser, 0);
 
   old_len = parser->len;
   j = old_len + 1;
   if (j >= parser->alloc) {
     parser->alloc *= 2;
-    new_cell = SafeMalloc (parser->alloc * sizeof(Cell) + 1);
-    new_tokseq = SafeMalloc (parser->alloc * sizeof(int));
+    new_cell = SafeCalloc (parser->alloc, sizeof(Cell) + 1);
+    new_tokseq = SafeCalloc (parser->alloc, sizeof(int));
     for (i = 0; i <= old_len; ++i)
       new_cell[i] = parser->cell[i];
     for (i = 0; i < old_len; ++i)
@@ -130,24 +151,29 @@ void parserPushTok (Parser *parser, int tok) {
   parser->tokseq[old_len] = tok;
   j_cell = cellNewTok (parser, j, tok);
   parser->cell[j] = j_cell;
+  parser->len = j;
 
   rule_end = parser->rule + parser->rules;
   for (i = old_len; i >= 0; --i)
-    for (k = i; k <= j; ++k) {
-      for (rule = parser->rule; rule != rule_end; ++rule)
+    for (rule = parser->rule; rule != rule_end; ++rule) {
+      for (k = i; k <= j; ++k) {
 	cell_inc_p
 	  (j_cell, i, j, rule->lhs_sym,
 	   parser_get_p(parser,i,k,rule->rhs1_sym) * parser_get_p(parser,k,j,rule->rhs2_sym) * rule->rule_prob);
-
-      for (i = old_len; i >= 0; --i)
-	for (rule = parser->rule; rule != rule_end; ++rule)
-	  for (k = i; k <= j; ++k)
-	    cell_inc_q
-	      (j_cell, i, j, rule->lhs_sym,
-	       parser_get_p(parser,i,k,rule->rhs1_sym) * parser_get_q(parser,k,rule->rhs2_sym) * rule->rule_prob);
+	if (parser->debug)
+	  printf ("%g  -->  p(%d,%d,%d) += p(%d,%d,%d) * p(%d,%d,%d) * %g;\n", parser_get_p(parser,i,j,rule->lhs_sym), i,j,rule->lhs_sym, i,k,rule->rhs1_sym, k,j,rule->rhs2_sym, rule->rule_prob);
+  
+	cell_inc_q
+	  (j_cell, i, j, rule->lhs_sym,
+	   parser_get_p(parser,i,k,rule->rhs1_sym) * parser_get_q(parser,k,rule->rhs2_sym) * rule->rule_prob);
+	if (parser->debug)
+	  printf ("%g  -->  q(%d,%d) += p(%d,%d,%d) * q(%d,%d) * %g;\n", parser_get_q(parser,i,rule->lhs_sym), i,rule->lhs_sym, i,k,rule->rhs1_sym, k,rule->rhs2_sym, rule->rule_prob);
+      }
       cell_inc_q
 	(j_cell, i, j, rule->lhs_sym,
-	 parser_get_q(parser,i,rule->rhs2_sym) * rule->rule_prob);
+	 parser_get_q(parser,i,rule->rhs1_sym) * rule->rule_prob);
+      if (parser->debug)
+	printf ("%g  -->  q(%d,%d) += q(%d,%d) * %g;\n", parser_get_q(parser,i,rule->lhs_sym), i,rule->lhs_sym, i,rule->rhs1_sym, rule->rule_prob);
     }
 }
 

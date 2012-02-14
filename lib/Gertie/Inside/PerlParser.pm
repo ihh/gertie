@@ -1,4 +1,4 @@
-package Gertie::Inside::Native;
+package Gertie::Inside::PerlParser;
 use Moose;
 use AutoHash;
 use Gertie;
