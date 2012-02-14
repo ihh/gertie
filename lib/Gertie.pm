@@ -35,7 +35,7 @@ sub new_gertie {
 			       'lhs_regex' => $sym_regex,
 			       'rhs_regex' => "$sym_regex(|$quant_regex)",
 			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)',
-			       'quantifier_regex' => "($quant_regex)".'$',
+			       'quantifier_regex' => $quant_regex,
 
 			       'inside_class' => 'Gertie::Inside::Native',
 
@@ -111,7 +111,7 @@ sub parse_line {
 			      sub { my ($lhs, @rhs) = @_;
 				    @rhs = $self->process_quantifiers (@rhs);
 				    $self->add_non_Chomsky_rule ($lhs, \@rhs, $prob) });
-    } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex\b)*\s*($prob_regex)(\s*\|(\s*$rhs_regex)*\s*($prob_regex))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
+    } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*\s*($prob_regex)(\s*\|(\s*$rhs_regex)*\s*($prob_regex))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
 	my ($lhs, $all_rhs) = ($1, $2);
 	my @rhs = split /\|/, $all_rhs;
 	for my $rhs (@rhs) { $self->parse_line ("$lhs -> $rhs") }
@@ -128,14 +128,17 @@ sub parse_line {
 
 sub foreach_agent {
     my ($self, $sym_list, $agent_sub) = @_;
-    if (grep (/\@\d+$/, @$sym_list)) {
+    my $quant_re = '(|' . $self->quantifier_regex . ')$';
+    if (grep (/\@\d+$quant_re/, @$sym_list)) {
+	warn "Found agent macro in (@$sym_list)" if $self->verbose > 10;
 	for (my $a1 = 0; $a1 < @{$self->agents}; ++$a1) {
 	    my @sym = @$sym_list;
 	    for (my $a_delta = 0; $a_delta < @{$self->agents}; ++$a_delta) {
 		my $agent_index = ($a1 + $a_delta) % (@{$self->agents} + 0);
 		my $agent = $self->agents->[$agent_index];
 		my $num = $a_delta + 1;
-		grep (s/\@$num$/\@$agent/, @sym);
+		grep (s/\@$num$quant_re/\@$agent$1/g, @sym);
+		warn "Expanded to (@sym)" if $self->verbose > 10;
 	    }
 	    &$agent_sub (@sym);
 	}
@@ -150,6 +153,7 @@ sub add_rule {
     $rhs2 = $self->end unless length($rhs2);
     $prob = 1 unless length($prob);
     $prob = eval($prob);
+    warn "Adding Chomsky rule: $lhs -> $rhs1 $rhs2" if $self->verbose > 10;
     # Check the rule is valid
     confess unless defined($rhs1) && length($rhs1);
     confess if $lhs eq $self->end;  # No rules starting with 'end'
@@ -173,6 +177,8 @@ sub add_rule {
 
 sub add_non_Chomsky_rule {
     my ($self, $lhs, $rhs_listref, $prob) = @_;
+    $prob = 1 unless defined $prob;
+    warn "Adding non-Chomsky rule: $lhs -> @$rhs_listref ($prob)" if $self->verbose > 10;
     my @rhs = @$rhs_listref;
     if (@rhs == 0) {
 	$self->add_rule ($lhs, $self->end, undef, $prob);
@@ -400,7 +406,7 @@ sub to_string {
 	    }
 	}
     }
-    my $quant_regex = $self->quantifier_regex;
+    my $quant_regex = '(|' . $self->quantifier_regex . ')$';
     for my $lhs (sort @{$self->sym_name}) {
 	next if $lhs =~ /\./;  # don't print rules added by Chomsky-fication
 	next if $lhs eq $self->end;  # don't mess around with 'end' nonterminal

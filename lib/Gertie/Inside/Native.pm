@@ -79,7 +79,7 @@ sub push_tok {
 				my ($rhs2, $rule_prob, $rule_index) = @$rule;
 				if (defined (my $rhs2_prob = $p->[$j]->[$k]->{$rhs2})) {
 				    $p->[$j]->[$i]->{$lhs} += $rhs1_prob * $rhs2_prob * $rule_prob;
-				    warn "p($i,$j,",$gertie->sym_name->[$lhs],") += p($i,$k,",$gertie->sym_name->[$rhs1],")(=$rhs1_prob) * p($k,$j,",$gertie->sym_name->[$rhs2],")(=$rhs2_prob) * P(rule)(=$rule_prob)" if $self->verbose > 10;
+				    warn "p($i,$j,",$gertie->sym_name->[$lhs],") += p($i,$k,",$gertie->sym_name->[$rhs1],")(=$rhs1_prob) * p($k,$j,",$gertie->sym_name->[$rhs2],")(=$rhs2_prob) * P(rule)(=$rule_prob)" if $self->verbose > 30;
 				}
 			    }
 			}
@@ -130,13 +130,13 @@ sub recompute_q {
 			if (defined (my $rhs1_prob = $p->[$k]->[$i]->{$rhs1})
 			    && defined (my $rhs2_prob = $q->[$k]->{$rhs2})) {
 			    $q->[$i]->{$lhs} += $rule_prob * $rhs1_prob * $rhs2_prob;
-			    warn "q($i,",$gertie->sym_name->[$lhs],") += p($i,$k,",$gertie->sym_name->[$rhs1],")(=$rhs1_prob) * q($k,",$gertie->sym_name->[$rhs2],")(=$rhs2_prob) * P(rule)(=$rule_prob)" if $self->verbose > 10;
+			    warn "q($i,",$gertie->sym_name->[$lhs],") += p($i,$k,",$gertie->sym_name->[$rhs1],")(=$rhs1_prob) * q($k,",$gertie->sym_name->[$rhs2],")(=$rhs2_prob) * P(rule)(=$rule_prob)" if $self->verbose > 30;
 			}
 		    }
 		    if (defined $q->[$i]->{$rhs1}) {
 			my $rhs1_prob = $q->[$i]->{$rhs1};
 			$q->[$i]->{$lhs} += $rule_prob * $rhs1_prob;
-			warn "q($i,",$gertie->sym_name->[$lhs],") += q($i,",$gertie->sym_name->[$rhs1],")(=$rhs1_prob) * P(rule)(=$rule_prob)" if $self->verbose > 10;
+			warn "q($i,",$gertie->sym_name->[$lhs],") += q($i,",$gertie->sym_name->[$rhs1],")(=$rhs1_prob) * P(rule)(=$rule_prob)" if $self->verbose > 30;
 		    }
 		}
 	    }

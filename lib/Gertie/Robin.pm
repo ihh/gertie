@@ -70,7 +70,7 @@ sub set_boring_color_scheme {
 
 sub new_from_file {
     my ($class, $filename, @args) = @_;
-    my $gertie = Gertie->new_from_file ($filename);
+    my $gertie = Gertie->new_from_file ($filename, @args);
     my $self = $class->new_robin ($gertie, 'text_filename' => "$filename.text", @args);
     $self->load_text_from_file ($self->text_filename) if -e $self->text_filename;
     # return

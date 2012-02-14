@@ -1,0 +1,43 @@
+@p;
+@c;
+
+conversation -> prologue* chat_up_attempt@1 epilogue*;
+
+chat_up_attempt@1 ->
+small_talk@1 serious@1? flirt@1
+| small_talk@1 awkward_fail@1
+| small_talk@1 serious@2 flirt@2
+| small_talk@1 serious@2 awkward_fail@2;
+
+flirt@1 ->
+successful_initial_flirt@1 proposition@1
+| failed_initial_flirt@1;
+
+proposition@1 ->
+successful_proposition@1 close@1
+| failed_proposition@1;
+
+
+small_talk@1 ->
+small_talk_turn@1 small_talk_response@2 small_talk@1 (2)
+| small_talk_interrupt@2 small_talk@2 (1)
+| end (.1);
+
+small_talk_turn@1 ->
+fact@1
+| opinion@1
+| emphasis@1;
+
+small_talk_response@1 ->
+verbal_backchannel@1
+| physical_backchannel@1
+| acknowledgement@1
+| silence@1;
+
+
+
+serious@1 ->
+serious_turn@1 serious_response@2 serious@1 (2)
+| serious_interrupt@2 serious@2 (1)
+| end (.03);
+
