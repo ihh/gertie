@@ -38,11 +38,13 @@ sub new_gertie {
 			       'quantifier_regex' => $quant_regex,
 
 			       'inside_class' => 'Gertie::Inside::PerlParser',
+			       'use_c_parser' => 0,
 
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
     $self->symbol->{$self->end} = 1;
+    $self->inside_class ('Gertie::Inside::CParser') if $self->use_c_parser;
     return $self;
 }
 

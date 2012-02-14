@@ -18,7 +18,7 @@ sub new_Inside {
     my $rules = @{$gertie->rule} + 0;
     warn "Parser *p = parserNew ($symbols, $rules);\n" if $verbose;
     my $cpp_parser = parser::parserNew ($symbols, $rules);
-    parser::parserDebug($cpp_parser) if $verbose;
+    parser::parserDebug($cpp_parser) if $verbose > 1;
     my $n_rule = 0;
     for (my $lhs = 0; $lhs < $symbols; ++$lhs) {
 	while (my ($rhs1, $rule_list) = each %{$gertie->rule_by_lhs_rhs1->{$lhs}}) {
@@ -39,6 +39,7 @@ sub new_Inside {
 	warn "parserSetEmptyProb (p, $sym, $p);  /* ", $gertie->sym_name->[$sym], " */\n" if $verbose;
 	parser::parserSetEmptyProb ($cpp_parser, $sym, $p);
     }
+    parser::parserFinalizeRules ($cpp_parser);
 
     my $self = $class->SUPER::new_Inside ( $gertie,
 					   undef,  # don't pass tokseq to super
@@ -62,6 +63,7 @@ sub DESTROY {
     my ($self) = @_;
     parser::parserDelete ($self->cpp_parser)
 	if defined $self->{'cpp_parser'};
+    $self->{'cpp_parser'} = undef;
 }
 
 sub get_p {
@@ -93,6 +95,7 @@ sub pop_tok {
     my ($self) = @_;
     confess "Attempt to pop empty matrix" if $self->len == 0;
     warn "parserPopTok (p);\n" if $self->verbose;
+    pop @{$self->tokseq};
     return parser::parserPopTok ($self->cpp_parser);
 }
 

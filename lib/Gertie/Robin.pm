@@ -40,7 +40,7 @@ sub new_robin {
     return $self;
 }
 
-sub set_cool_color_scheme {
+sub use_cool_color_scheme {
     my ($self) = @_;
     my %color = ('log_color' => color('red on_black'),
 		 'input_color' => color('white on_black'),
@@ -54,7 +54,7 @@ sub set_cool_color_scheme {
     }
 }
 
-sub set_boring_color_scheme {
+sub use_boring_color_scheme {
     my ($self) = @_;
     my @color = ('log_color' ,
 		 'input_color' ,
@@ -130,14 +130,14 @@ sub load_narrative_text {
 
 # play method
 sub play {
-    my ($self) = @_;
-    $self->inside ($self->gertie->prefix_Inside);  # initialize empty Inside matrix
+    my ($self, @args) = @_;
+    $self->inside ($self->gertie->prefix_Inside ([], @args));  # initialize empty Inside matrix
     $self->inside->verbose ($self->verbose);  # make the Inside matrix as verbose as we are, for log tidiness
     $self->{'turns'} = { map (($_ => 0), @{$self->gertie->agents}) };
 
     my $narrative_text = $self->narrative_text;
 
-    if ($self->use_color) { $self->set_cool_color_scheme } else { $self->set_boring_color_scheme }
+    if ($self->use_color) { $self->use_cool_color_scheme } else { $self->use_boring_color_scheme }
     my $log_color = $self->log_color;
     my $reset_nl = $self->reset_color . "\n";
     my @begin_log = ($log_color, "--- BEGIN DEBUG LOG", $reset_nl);

@@ -11,6 +11,7 @@ int main() {
   parserSetRule (p, 2, 4, 3, 1, 1);
   parserSetEmptyProb (p, 1, 1);
   parserSetEmptyProb (p, 0, 1);
+  parserFinalizeRules (p);
   parserPushTok (p, 2);
   /*
     parserPrintMatrix (p);
@@ -22,6 +23,9 @@ int main() {
     printf ("ok 1 - C parser test\n");
   else
     printf ("not ok 1 - C parser test (final p=%g, final q=%g)\n", pf, qf);
+
+  parserDelete (p);
+
   return 0;
 }
 

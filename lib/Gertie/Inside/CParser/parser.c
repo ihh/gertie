@@ -75,6 +75,7 @@ Parser* parserNew (int symbols, int rules) {
   parser->rules = rules;
   parser->len = 0;
   parser->alloc = 1;
+  parser->debug = 0;
   parser->rule = SafeMalloc (rules * sizeof (Rule));
   parser->p_empty = SafeCalloc (symbols, sizeof (double));
   parser->cell = SafeMalloc (sizeof (Cell*));
@@ -119,6 +120,11 @@ void parserSetRule (Parser *parser, int rule_index, int lhs_sym, int rhs1_sym, i
 }
 
 void parserSetEmptyProb (Parser *parser, int sym, double p) { parser->p_empty[sym] = p; }
+
+void parserFinalizeRules (Parser *parser) {
+  parser->cell[0] = cellNew (parser, 0);
+}
+
 int parserSeqLen (Parser *parser) { return parser->len; }
 
 double parserGetP (Parser *parser, int i, int j, int sym) { return parser_get_p(parser,i,j,sym); }
@@ -129,9 +135,6 @@ void parserPushTok (Parser *parser, int tok) {
   Cell *j_cell, **new_cell;
   int *new_tokseq;
   Rule *rule, *rule_end;
-
-  if (parser->cell[0] == NULL)
-    parser->cell[0] = cellNew (parser, 0);
 
   old_len = parser->len;
   j = old_len + 1;
