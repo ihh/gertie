@@ -62,8 +62,7 @@ sub new_Inside {
 sub DESTROY {
     my ($self) = @_;
     if (defined $self->{'cpp_parser'}) {
-# Commented out due to segfaults... ugh
-#	parser::parserDelete ($self->cpp_parser);
+	parser::parserDelete ($self->cpp_parser);
     }
     $self->{'cpp_parser'} = undef;
 }

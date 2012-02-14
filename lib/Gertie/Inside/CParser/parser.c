@@ -88,7 +88,7 @@ void parserDelete (Parser* parser) {
   int n;
   for (n = 0; n < parser->alloc; ++n)
     if (parser->cell[n])
-      SafeFree (parser->cell[n]);
+      cellDelete (parser->cell[n]);
   if (parser->tokseq)
     SafeFree (parser->tokseq);
   SafeFree (parser->rule);
@@ -189,9 +189,10 @@ void parserPushTok (Parser *parser, int tok) {
 int parserPopTok (Parser* parser) {
   int last_tok;
   Cell *last_cell;
-  last_tok = parser->tokseq[parser->len-1];
+  last_tok = parser->tokseq[parser->len - 1];
   last_cell = parser->cell[parser->len];
-  --parser->len;
   SafeFree (last_cell);
+  parser->cell[parser->len] = NULL;
+  --parser->len;
   return last_tok;
 }
