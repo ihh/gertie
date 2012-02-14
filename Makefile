@@ -18,3 +18,6 @@ convo:
 
 test:
 	prove
+
+cparser:
+	cd lib/Gertie/Inside/CParser; make test
