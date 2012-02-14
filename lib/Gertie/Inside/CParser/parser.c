@@ -164,19 +164,25 @@ void parserPushTok (Parser *parser, int tok) {
 	  (j_cell, i, j, rule->lhs_sym,
 	   parser_get_p(parser,i,k,rule->rhs1_sym) * parser_get_p(parser,k,j,rule->rhs2_sym) * rule->rule_prob);
 	if (parser->debug)
-	  printf ("%g  -->  p(%d,%d,%d) += p(%d,%d,%d) * p(%d,%d,%d) * %g;\n", parser_get_p(parser,i,j,rule->lhs_sym), i,j,rule->lhs_sym, i,k,rule->rhs1_sym, k,j,rule->rhs2_sym, rule->rule_prob);
+	  printf ("%g  -->  p(%d,%d,%d) += p(%d,%d,%d) * p(%d,%d,%d) * %g;\n",
+		  parser_get_p(parser,i,j,rule->lhs_sym),
+		  i,j,rule->lhs_sym, i,k,rule->rhs1_sym, k,j,rule->rhs2_sym, rule->rule_prob);
   
 	cell_inc_q
 	  (j_cell, i, j, rule->lhs_sym,
 	   parser_get_p(parser,i,k,rule->rhs1_sym) * parser_get_q(parser,k,rule->rhs2_sym) * rule->rule_prob);
 	if (parser->debug)
-	  printf ("%g  -->  q(%d,%d) += p(%d,%d,%d) * q(%d,%d) * %g;\n", parser_get_q(parser,i,rule->lhs_sym), i,rule->lhs_sym, i,k,rule->rhs1_sym, k,rule->rhs2_sym, rule->rule_prob);
+	  printf ("%g  -->  q(%d,%d) += p(%d,%d,%d) * q(%d,%d) * %g;\n",
+		  parser_get_q(parser,i,rule->lhs_sym),
+		  i,rule->lhs_sym, i,k,rule->rhs1_sym, k,rule->rhs2_sym, rule->rule_prob);
       }
       cell_inc_q
 	(j_cell, i, j, rule->lhs_sym,
 	 parser_get_q(parser,i,rule->rhs1_sym) * rule->rule_prob);
       if (parser->debug)
-	printf ("%g  -->  q(%d,%d) += q(%d,%d) * %g;\n", parser_get_q(parser,i,rule->lhs_sym), i,rule->lhs_sym, i,rule->rhs1_sym, rule->rule_prob);
+	printf ("%g  -->  q(%d,%d) += q(%d,%d) * %g;\n",
+		parser_get_q(parser,i,rule->lhs_sym),
+		i,rule->lhs_sym, i,rule->rhs1_sym, rule->rule_prob);
     }
 }
 
