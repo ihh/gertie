@@ -13,9 +13,12 @@ clean:
 %.bundle: %.o
 	gcc -Wall -bundle -o $*.bundle $*.o $*_wrap.o `perl -MExtUtils::Embed -e ldopts`
 
-test: all parser.c parser.h test.c
-	gcc -Wall -g -o test parser.c parser.h test.c
-	./test
+test: simple.t
+	./simple.t
+	./cparser.t
+
+%.t: parser.c parser.h %.t.c
+	gcc -Wall -g -o $*.t parser.c parser.h $*.t.c
 
 .SECONDARY:
 

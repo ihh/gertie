@@ -20,4 +20,4 @@ test:
 	prove
 
 cparser:
-	cd lib/Gertie/Inside/CParser; make test
+	cd lib/Gertie/Inside/CParser; make all test
