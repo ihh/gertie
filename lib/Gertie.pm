@@ -448,7 +448,7 @@ sub prefix_Inside {
     my ($self, $tokseq, @args) = @_;
     my $inside_class = $self->inside_class;
     eval ("require $inside_class");
-    return $inside_class->new_Inside ($self, $tokseq, @args);
+    return $inside_class->new_Inside ($self, $tokseq, 'verbose' => 0, @args);
 }
 
 sub simulate_Chomsky {

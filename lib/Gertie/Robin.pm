@@ -303,7 +303,8 @@ sub player_choice {
 		} else {
 		    print $meta_color, "Wow, that's weird - did you mean ",
 		    join (", ", map ($choice_selector_color . $_ . $meta_color, 1..$#item_callback)),
-		    " or ", $choice_selector_color, @item_callback+0, $meta_color, ", maybe?";
+		    (@item_callback > 1 ? " or " : ""),
+		    $choice_selector_color, @item_callback+0, $meta_color, ", maybe?";
 		    ++$frustrated_tries;
 		}
 	    } elsif (my @match = length($input)
