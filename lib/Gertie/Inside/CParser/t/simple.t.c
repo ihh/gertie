@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "parser.h"
+#include "../parser.h"
 
 #define ABS(x) ((x)>0?(x):-(x))
 #define EQUAL(a,b) (ABS(a-b)<.00001)
