@@ -1,0 +1,23 @@
+Perl prereqs (CPAN)
+-------------------
+Moose
+Graph::Directed
+Term::ANSIColor
+
+Other prereqs
+-------------
+Swig (requires libpcre, gcc)
+prove (for tests)
+
+Instructions
+------------
+To run tests:
+make test
+
+To build C parser:
+make cparser
+
+To run the test/demo grammars:
+make turn  (or 'make perl-turn' if cparser not working)
+make debug-turn
+make convo
