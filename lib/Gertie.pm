@@ -92,6 +92,7 @@ sub parse_line {
     local $_;
     $_ = $line;
     return unless /\S/;  # ignore blank lines
+    warn "Parsing $line" if $self->verbose > 10;
 
     my $agent_regex = $self->agent_regex;
     my $lhs_regex = $self->lhs_regex;
@@ -408,7 +409,7 @@ sub to_string {
 	    }
 	}
     }
-    my $quant_regex = '(|' . $self->quantifier_regex . ')$';
+    my $quant_regex = $self->quantifier_regex . '$';
     for my $lhs (sort @{$self->sym_name}) {
 	next if $lhs =~ /\./;  # don't print rules added by Chomsky-fication
 	next if $lhs eq $self->end;  # don't mess around with 'end' nonterminal

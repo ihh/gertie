@@ -16,9 +16,9 @@ sub new_Inside {
 
     my $symbols = @{$gertie->sym_name} + 0;
     my $rules = @{$gertie->rule} + 0;
-    warn "Parser *p = parserNew ($symbols, $rules);\n" if $verbose;
+    warn "Parser *p = parserNew ($symbols, $rules);\n" if $verbose > 10;
     my $cpp_parser = parser::parserNew ($symbols, $rules);
-    parser::parserDebug($cpp_parser) if $verbose > 1;
+    parser::parserDebug($cpp_parser) if $verbose > 100;
     my $n_rule = 0;
     for (my $lhs = 0; $lhs < $symbols; ++$lhs) {
 	while (my ($rhs1, $rule_list) = each %{$gertie->rule_by_lhs_rhs1->{$lhs}}) {
@@ -29,14 +29,14 @@ sub new_Inside {
 		    "parserSetRule (p, $n_rule, $lhs, $rhs1, $rhs2, $rule_prob);  /* ",
 		    $gertie->sym_name->[$lhs], " -> ",
 		    $gertie->sym_name->[$rhs1], " ", $gertie->sym_name->[$rhs2],
-		    " */\n" if $verbose;
+		    " */\n" if $verbose > 10;
 		parser::parserSetRule ($cpp_parser, $n_rule++, $lhs, $rhs1, $rhs2, $rule_prob);
 	    }
 	}
     }
     confess "Wrong number of rules" if $n_rule != $rules;
     while (my ($sym, $p) = each %{$gertie->p_empty}) {
-	warn "parserSetEmptyProb (p, $sym, $p);  /* ", $gertie->sym_name->[$sym], " */\n" if $verbose;
+	warn "parserSetEmptyProb (p, $sym, $p);  /* ", $gertie->sym_name->[$sym], " */\n" if $verbose > 10;
 	parser::parserSetEmptyProb ($cpp_parser, $sym, $p);
     }
     parser::parserFinalizeRules ($cpp_parser);
@@ -70,7 +70,7 @@ sub get_p {
     my ($self, $i, $j, $sym) = @_;
     confess "get_p out of bounds"
 	if $i < 0 || $i > $j || $j > $self->len || $sym < 0 || $sym >= $self->gertie->n_symbols;
-    warn "parserGetP (p, $i, $j, $sym);\n" if $self->verbose;
+    warn "parserGetP (p, $i, $j, $sym);\n" if $self->verbose > 10;
     return parser::parserGetP ($self->cpp_parser, $i, $j, $sym);
 }
 
@@ -78,14 +78,14 @@ sub get_q {
     my ($self, $i, $sym) = @_;
     confess "get_q out of bounds"
 	if $i < 0 || $i > $self->len || $sym < 0 || $sym >= $self->gertie->n_symbols;
-    warn "parserGetQ (p, $i, $sym);\n" if $self->verbose;
+    warn "parserGetQ (p, $i, $sym);\n" if $self->verbose > 10;
     return parser::parserGetQ ($self->cpp_parser, $i, $sym);
 }
 
 sub push_tok {
     my ($self, @new_tok) = @_;
     for my $tok (@new_tok) {
-	warn "parserPushTok (p, $tok);  /* ", $self->gertie->sym_name->[$tok], " */\n" if $self->verbose;
+	warn "parserPushTok (p, $tok);  /* ", $self->gertie->sym_name->[$tok], " */\n" if $self->verbose > 10;
 	push @{$self->tokseq}, $tok;
 	parser::parserPushTok ($self->cpp_parser, $tok);
    }
@@ -94,7 +94,7 @@ sub push_tok {
 sub pop_tok {
     my ($self) = @_;
     confess "Attempt to pop empty matrix" if $self->len == 0;
-    warn "parserPopTok (p);\n" if $self->verbose;
+    warn "parserPopTok (p);\n" if $self->verbose > 10;
     pop @{$self->tokseq};
     return parser::parserPopTok ($self->cpp_parser);
 }
