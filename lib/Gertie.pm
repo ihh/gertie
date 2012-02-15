@@ -101,9 +101,11 @@ sub parse_line {
 
     if (/^\s*($lhs_regex)\s*\->\s*($rhs_regex)\s*(|$rhs_regex)\s*($prob_regex)\s*;?\s*$/) {  # Transition (A->B) or Chomsky-form rule (A->B C) with optional probability
 	my ($lhs, $rhs1, $rhs1_crap, $rhs2, $rhs2_crap, $prob) = ($1, $2, $3, $4, $5, $6);
-	($rhs1, $rhs2) = $self->process_quantifiers ($rhs1, $rhs2);
 	$self->foreach_agent ([$lhs, $rhs1, $rhs2],
-			      sub { $self->add_rule (@_, $prob) });
+			      sub { my ($lhs, $rhs1, $rhs2) = @_;
+				    my ($deferred_rule, $newrhs1, $newrhs2) = $self->process_quantifiers ($rhs1, $rhs2);
+				    $self->add_rule ($lhs, $newrhs1, $newrhs2, $prob);
+				    $self->add_deferred_rules ($deferred_rule) });
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*)\s*($prob_regex)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
 	my ($lhs, $rhs, $rhs1, $rhs_crap, $prob) = ($1, $2, $3, $4, $5);
 	# Convert "A->B C D E" into "A -> B.C.D E;  B.C.D -> B.C D;  B.C -> B C"
@@ -112,8 +114,9 @@ sub parse_line {
 	confess "Parse error" unless @rhs >= 2;
 	$self->foreach_agent ([$lhs, @rhs],
 			      sub { my ($lhs, @rhs) = @_;
-				    @rhs = $self->process_quantifiers (@rhs);
-				    $self->add_non_Chomsky_rule ($lhs, \@rhs, $prob) });
+				    my ($deferred_rule, @newrhs) = $self->process_quantifiers (@rhs);
+				    $self->add_non_Chomsky_rule ($lhs, \@newrhs, $prob);
+				    $self->add_deferred_rules ($deferred_rule) });
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*\s*($prob_regex)(\s*\|(\s*$rhs_regex)*\s*($prob_regex))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
 	my ($lhs, $all_rhs) = ($1, $2);
 	my @rhs = split /\|/, $all_rhs;
@@ -200,7 +203,8 @@ sub add_non_Chomsky_rule {
 
 sub process_quantifiers {
     my ($self, @sym) = @_;
-    my @sym_ret;
+    # all the nonsense with @deferred_rule is so that we don't introduce a spurious start nonterminal
+    my (@sym_ret, @deferred_rule);
     for my $sym (@sym) {
 	$sym =~ s/\{(\d+)\}$/\{$1,$1\}/;  # Convert X{N} into X{N,N}
 	$sym =~ s/\{0?,1\}$/?/;  # Convert X{0,1} into X?
@@ -210,34 +214,46 @@ sub process_quantifiers {
 	$sym =~ s/\{0,(\d+)\}$/{,$1}/;  # Convert X{0,N} into X{,N}
 	push @sym_ret, $sym;
 	if ($sym =~ /^(\w+)\?/) {
-	    $self->add_rule ($sym, $1);
-	    $self->add_rule ($sym, $self->end);
+	    push @deferred_rule, [$sym, $1];
+	    push @deferred_rule, [$sym, $self->end];
 	} elsif ($sym =~ /^(\w+)\*/) {
-	    $self->add_rule ($sym, $1, $sym);
-	    $self->add_rule ($sym, $self->end);
+	    push @deferred_rule, [$sym, $1, $sym];
+	    push @deferred_rule, [$sym, $self->end];
 	} elsif ($sym =~ /^(\w+)\+/) {
 	    my $base = $1;
-	    $self->add_rule ($sym, $base, $sym);
-	    $self->add_rule ($sym, $base);
+	    push @deferred_rule, [$sym, $base, $sym];
+	    push @deferred_rule, [$sym, $base];
 	} elsif ($sym =~ /^(\w+)\{(\d*),(\d*)\}/) {
 	    my ($base, $min, $max) = ($1, $2, $3);
 	    confess "Bad quantifiers in nonterminal $sym" if (length($max) && $max < 0) || (length($min) && $min <= 0) || (length($max) && length($min) && $max < $min) || ($min eq "" && $max eq "");
 	    if (length $max) {
 		for (my $n = length($min) ? $min : 0; $n <= $max; ++$n) {
 		    if ($n == 0) {
-			$self->add_rule ($sym, $self->end);
+			push @deferred_rule, [$sym, $self->end];
 		    } else {
-			$self->add_non_Chomsky_rule ($sym, [map ($base, 1..$n)]);
+			push @deferred_rule, [$sym, map ($base, 1..$n)];
 		    }
 		}
 	    } else {  # $min > 1
-		$self->add_non_Chomsky_rule ($sym, [map ($base, 1..$min-1), "$base+"]);
-		$self->add_rule ("$base+", $base, "$base+");
-		$self->add_rule ("$base+", $base);
+		push @deferred_rule, [$sym, map ($base, 1..$min-1), "$base+"];
+		push @deferred_rule, ["$base+", $base, "$base+"];
+		push @deferred_rule, ["$base+", $base];
 	    }
 	}
     }
-    return @sym_ret;
+    return (\@deferred_rule, @sym_ret);
+}
+
+sub add_deferred_rules {
+    my ($self, $deferred_rule_listref) = @_;
+    for my $rule (@$deferred_rule_listref) {
+	my ($deflhs, @defrhs) = @$rule;
+	if (@defrhs <= 2) {
+	    $self->add_rule ($deflhs, @defrhs);
+	} else {
+	    $self->add_non_Chomsky_rule ($deflhs, \@defrhs);
+	}
+    }
 }
 
 # Index: convert symbols & rules to integers
