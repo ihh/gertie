@@ -1,4 +1,4 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl -w
 
 use Cwd qw(abs_path);
 use FindBin;
@@ -21,7 +21,7 @@ sub dump_log {
 }
 
 
-my $g = Gertie->new_from_string ('a->b c;b->d;c->end;');
+my $g = Gertie->new_from_string ('a->b c;b->d;c->end;',verbose=>99);
 $g->inside_class ('Gertie::Inside::CParser');
 
 my $simparse = $g->simulate;
