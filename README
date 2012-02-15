@@ -14,7 +14,7 @@ Instructions
 To run tests:
 make test
 
-To build C parser:
+To build (and test) C parser:
 make cparser
 
 To run the test/demo grammars:
