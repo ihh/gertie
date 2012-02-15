@@ -3,6 +3,7 @@ Perl prereqs (CPAN)
 Moose
 Graph::Directed
 Term::ANSIColor
+Time::Progress
 
 Other prereqs
 -------------

@@ -153,8 +153,8 @@ sub foreach_agent {
 sub add_rule {
     my ($self, $lhs, $rhs1, $rhs2, $prob) = @_;
     # Supply default values
-    $rhs2 = $self->end unless length($rhs2);
-    $prob = 1 unless length($prob);
+    $rhs2 = $self->end unless defined($rhs2) && length($rhs2);
+    $prob = 1 unless defined($prob) && length($prob);
     $prob = eval($prob);
     warn "Adding Chomsky rule: $lhs -> $rhs1 $rhs2" if $self->verbose > 10;
     # Check the rule is valid
