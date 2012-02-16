@@ -32,6 +32,7 @@ sub new_gertie {
 			       'agents' => [qw(p)],  # first agent is the human player
 
 			       'agent_regex' => '[a-z]\w*\b',
+			       'sym_regex' => $sym_regex,
 			       'lhs_regex' => $sym_regex,
 			       'rhs_regex' => "$sym_regex(|$quant_regex)",
 			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)',
@@ -203,6 +204,7 @@ sub add_non_Chomsky_rule {
 
 sub process_quantifiers {
     my ($self, @sym) = @_;
+    my $sym_regex = $self->sym_regex;
     # all the nonsense with @deferred_rule is so that we don't introduce a spurious start nonterminal
     my (@sym_ret, @deferred_rule);
     for my $sym (@sym) {
@@ -213,17 +215,17 @@ sub process_quantifiers {
 	$sym =~ s/\{1,\}$/+/;   # Convert X{1,} into X+
 	$sym =~ s/\{0,(\d+)\}$/{,$1}/;  # Convert X{0,N} into X{,N}
 	push @sym_ret, $sym;
-	if ($sym =~ /^(\w+)\?/) {
+	if ($sym =~ /^($sym_regex)\?$/) {
 	    push @deferred_rule, [$sym, $1];
 	    push @deferred_rule, [$sym, $self->end];
-	} elsif ($sym =~ /^(\w+)\*/) {
+	} elsif ($sym =~ /^($sym_regex)\*$/) {
 	    push @deferred_rule, [$sym, $1, $sym];
 	    push @deferred_rule, [$sym, $self->end];
-	} elsif ($sym =~ /^(\w+)\+/) {
+	} elsif ($sym =~ /^($sym_regex)\+$/) {
 	    my $base = $1;
 	    push @deferred_rule, [$sym, $base, $sym];
 	    push @deferred_rule, [$sym, $base];
-	} elsif ($sym =~ /^(\w+)\{(\d*),(\d*)\}/) {
+	} elsif ($sym =~ /^($sym_regex)\{(\d*),(\d*)\}$/) {
 	    my ($base, $min, $max) = ($1, $2, $3);
 	    confess "Bad quantifiers in nonterminal $sym" if (length($max) && $max < 0) || (length($min) && $min <= 0) || (length($max) && length($min) && $max < $min) || ($min eq "" && $max eq "");
 	    if (length $max) {

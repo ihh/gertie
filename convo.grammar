@@ -1,7 +1,7 @@
 @p;
 @c;
 
-conversation -> prologue* chat_up_attempt@1 epilogue*;
+conversation -> prologue* chat_up_attempt@1 epilogue* stop@p;
 
 chat_up_attempt@1 ->
 small_talk@1 serious@1? flirt@1
@@ -19,11 +19,8 @@ successful_proposition@1 close@1
 
 
 small_talk@1 ->
-small_talk_turn@1 small_talk_response@2 small_talk_continue@1;
-
-small_talk_continue@1 ->
-small_talk@1 (2)
-| small_talk_interrupt@2 small_talk_continue@2 (1)
+small_talk_turn@1 small_talk_response@2 small_talk@1 (2)
+| small_talk_turn@1 small_talk_interrupt@2 small_talk@2 (1)
 | end (.1);
 
 small_talk_turn@1 ->
