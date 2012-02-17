@@ -293,9 +293,10 @@ sub player_choice {
 	    $input =~ s/\s*$//;
 	    my $quoted_input = quotemeta($input);
 
-	    if ($input =~ /^\-?\d+/) {
-		if ($input >= 1 && $input <= @item_callback) {
-		    $n = $input - 1;
+	    if ($input =~ /^\-?(\d+)/) {
+		my $number = $1;
+		if ($number >= 1 && $number <= @item_callback) {
+		    $n = $number - 1;
 		    print $item_callback[$n]->[0], $self->reset_color, "\n";
 		} else {
 		    print $meta_color, "Wow, that's weird - did you mean ",

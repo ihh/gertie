@@ -21,7 +21,7 @@ sub dump_log {
 }
 
 
-my $g = Gertie->new_from_string ('a->b c;b->d;c->end;',verbose=>99);
+my $g = Gertie->new_from_string ('a->b c;b->d;c->end;');
 $g->inside_class ('Gertie::Inside::CParser');
 
 my $simparse = $g->simulate;

@@ -24,4 +24,7 @@ test:
 	prove
 
 cparser:
-	cd lib/Gertie/Inside/CParser; make all test
+	@cd lib/Gertie/Inside/CParser; make all >/dev/null
+
+cparser-test: cparser
+	cd lib/Gertie/Inside/CParser; make test
