@@ -20,6 +20,9 @@ convo: cparser
 goldie: cparser
 	bin/robin.pl $(GOLDIE) -cparser
 
+goldie-color: cparser
+	bin/robin.pl $(GOLDIE) -cparser -color
+
 test:
 	prove
 
