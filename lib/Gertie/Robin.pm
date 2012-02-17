@@ -123,11 +123,6 @@ sub parse_text_line {
     }
 }
 
-sub load_narrative_text {
-    my ($self, $filename) = @_;
-    $self->{'narrative_text'} = Fasta->new_from_file ($filename);
-}
-
 # play method
 sub play {
     my ($self, @args) = @_;
@@ -235,7 +230,9 @@ sub player_choice {
 
 	# Create menu text
 	my @menu = @options[$min..$max];
-	if (defined $choice_text) { @menu = map (defined($choice_text->{$_}) ? $choice_text->{$_} : $_, @menu) }
+	my $tidy = sub { local $_ = shift; s/\@\w+$//; return $_ };
+	if (defined $choice_text) { @menu = map (defined($choice_text->{$_}) ? $choice_text->{$_} : &$tidy($_),
+						 @menu) }
 
 	# Create menu callbacks
 	my @item_callback = map ([$choice_color . $_, sub { $choice = shift() + $min; print "\n" }],

@@ -92,6 +92,7 @@ sub parse_line {
     my ($self, $line) = @_;
     local $_;
     $_ = $line;
+    s/\n/ /g;
     return unless /\S/;  # ignore blank lines
     warn "Parsing $line" if $self->verbose > 10;
 
@@ -162,9 +163,9 @@ sub add_rule {
     $prob = eval($prob);
     warn "Adding Chomsky rule: $lhs -> $rhs1 $rhs2" if $self->verbose > 10;
     # Check the rule is valid
-    confess unless defined($rhs1) && length($rhs1);
-    confess if $lhs eq $self->end;  # No rules starting with 'end'
-    confess if $prob < 0;  # Rule weights are nonnegative
+    confess "Empty rule" unless defined($rhs1) && length($rhs1);
+    confess "Transformation of 'end'" if $lhs eq $self->end;  # No rules starting with 'end'
+    confess "Negative probability" if $prob < 0;  # Rule weights are nonnegative
     $self->{'start'} = $lhs unless defined $self->{'start'};  # First named nonterminal is start
     return if $prob == 0;  # Don't bother tracking zero-weight rules
     # Be idempotent

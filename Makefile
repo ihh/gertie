@@ -1,5 +1,6 @@
 GRAMMAR = t/turn-grammar
 CONVO = convo.grammar
+GOLDIE = goldilocks.grammar
 
 debug-turn: cparser
 	bin/robin.pl -cparser -grammar $(GRAMMAR) -text $(GRAMMAR).text -verbose 9 -color
@@ -15,6 +16,9 @@ debug-convo: cparser
 
 convo: cparser
 	bin/robin.pl -cparser $(CONVO)
+
+goldie: cparser
+	bin/robin.pl $(GOLDIE) -cparser
 
 test:
 	prove
