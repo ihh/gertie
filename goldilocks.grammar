@@ -1,26 +1,19 @@
 @p;
 @c;
-story -> goldilocks_story@c | punkilocks_story@c;
 
-goldilocks_story@c ->
-introduction@c
-which_protagonist@c choose_goldilocks@p
-goldilocks_trashes_house@c
-bears_react_to_goldilocks@c
-goldilocks_escapes@c;
+story ->
+introduction@c goldilocks@p goldilocks_main@c
+| introduction@c punkilocks@p punkilocks_main@c;
 
-punkilocks_story@c ->
-introduction@c
-which_protagonist@c choose_punkilocks@p
-punkilocks_trashes_house@c
-bears_react_to_punkilocks@c
-punkilocks_escapes@c;
+goldilocks_intro@c -> along_came_a_little_girl_named@c which_protagonist@c choose_goldilocks@p;
+punkilocks_intro@c -> introduction@c which_protagonist@c choose_punkilocks@p;
 
 introduction@c ->
 once_upon_a_time_there_were_3_bears@c
 description_of_the_house@p? tell_me_more@p
 every_morning_one_parent_made_porridge@c
-one_morning_the_porridge_was_too_hot_so_they_went_for_a_walk@c;
+one_morning_the_porridge_was_too_hot_so_they_went_for_a_walk@c
+along_came_a_little_girl_named@c;
 
 every_morning_one_parent_made_porridge@c -> every_morning_mum_made_porridge@c tell_me_more@p
 | every_morning_mum_made_porridge@c really_mum_and_not_dad@p thats_right@c
@@ -32,19 +25,32 @@ tell_me_about_the_bedrooms@p there_were_3@c they_all_slept_in_separate_bedrooms@
 | tell_me_about_the_kitchen@p there_were_3_bowls_and_3_places@c
 | tell_me_about_the_chairs@p they_had_3_rocking_chairs@c;
 
-goldilocks_trashes_house@c ->
-goldilocks_arrives@c tell_me_more@p
-she_eats_porridge@c tell_me_more@p
-she_breaks_chairs@c tell_me_more@p
-she_falls_asleep@c;
 
-punkilocks_trashes_house@c ->
-punkilocks_arrives@c description_of_punkilocks@p? description_of_punkilocks_vehicle@p? tell_me_more@p
-she_smashes_the_window@c 
-she_eats_porridge@c she_leaves_a_mess@c description_of_trashed_kitchen@p? tell_me_more@p
-she_breaks_chairs@c tell_me_more@p
-she_falls_asleep@c;
+goldilocks_main@c ->
+along_comes_goldlilocks@c goldilocks_and_reaction@c goldilocks_escapes@c;
+
+goldilocks_and_reaction@p ->
+goldilocks_porridge@p goldilocks_chairs@p goldilocks_beds@p bears_porridge@c bears_chairs@c bears_beds@c;
+
+
+punkilocks_main@c ->
+punkilocks_arrives_on_bike@c punkilocks_and_reaction@p punkilocks_escapes_on_bike@c
+| punkilocks_arrives_on_foot@c punkilocks_and_reaction@p punkilocks_escapes_on_foot@c;
+
+punkilocks_arrives_on_foot@c ->
+along_comes_punkilocks@c description_of_punkilocks@p?;
+
+punkilocks_arrives_on_bike@c ->
+along_comes_punkilocks@c how_did_she_get_there@p she_arrived_on_a_bike@c she_stashed_her_bike_under_the_stairs@c;
+
+punkilocks_and_reaction@p ->
+  punkilocks_porridge@p punkilocks_chairs@p punkilocks_beds@p
+   bears_porridge@c bears_chairs@c bears_beds@c
+| punkilocks_porridge@p punkilocks_bowls@p punkilocks_chairs@p punkilocks_beds@p
+   bears_porridge@c bears_bowls@p bears_chairs@c bears_beds@c
+| punkilocks_porridge@p punkilocks_chairs@p punkilocks_graffiti@p punkilocks_beds@p
+   bears_porridge@c bears_chairs@c bears_graffiti@p bears_beds@c;
 
 description_of_punkilocks@p -> tell_me_about_punkilocks@p she_had_pink_hair@c;
-description_of_punkilocks_vehicle@p -> tell_me_about_punkilocks_vehicle@p she_rode_a_motorbike@c;
 description_of_trashed_kitchen@p -> tell_me_about_the_mess@p she_smashed_the_bowls@c;
+
