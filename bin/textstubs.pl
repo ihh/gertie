@@ -36,36 +36,43 @@ my $robin = Gertie::Robin->new_from_file
      'verbose' => $verbose,
      defined($text_file) ? ('text_filename' => $text_file) : (),  # don't override default
     );
+my $gertie = $robin->gertie;
 
-my %is_term = map (($_ => 1), @{$robin->gertie->term_name});
-my %has_text = map (($_ => 1), @{$robin->gertie->term_name},
-		    keys %{$robin->choice_text},
-		    keys %{$robin->narrative_text});
-my @term = sort keys %has_text;
+my @term = @{$gertie->term_name};
+my %is_term = map (($_ => 1), @term);
+
+my %choice = %{$robin->choice_text};
+my %narrative = %{$robin->narrative_text};
+
+my @choice_term = sort (grep (length($choice{$_}) > 0, keys %choice));
+my @narrative_term = sort (grep (length($narrative{$_}) > 0, keys %narrative));
+
+my %has_text = map (($_ => 1), @term, @choice_term, @narrative_term);
+my @sym = sort keys %has_text;
+
+my %owned_by_player = map (($_ => 1),
+			   grep (defined($gertie->term_owner_by_name->{$_})
+				 && $gertie->term_owner_by_name->{$_} eq $gertie->player_agent, @term));
 
 my @text;
-for my $term (@term) {
-    my $default = $term;
+for my $sym (@sym) {
+    my $default = $sym;
     $default =~ s/\@.*$//;
     $default =~ s/_/ /g;
     $default =~ s/^([a-z])/@{[uc($1)]}/;
     my ($narrative, $choice);
-    if (!defined ($narrative = $robin->narrative_text->{$term})) {
-	$narrative = "$default\n";
+    if (!defined ($narrative = $robin->narrative_text->{$sym})) {
+	$narrative = "$default.\n\n";
     }
-    if (!defined ($choice = $robin->choice_text->{$term})) {
-	$choice = "$default.";
+    if (!defined ($choice = $robin->choice_text->{$sym})) {
+	$choice = $default;
     }
-    push @text, ">$term $choice\n$narrative";
+    push @text, ">$sym $choice\n$narrative";
 }
 
-for my $term (@term) {
-    if (!$is_term{$term}) {
-	my @unwanted;
-	push @unwanted, "narrative" if defined $robin->narrative_text->{$term};
-	push @unwanted, "choice" if defined $robin->choice_text->{$term};
-	warn "Terminal '$term' has ", join(" and ",@unwanted), " text but is not a grammar terminal\n";
-    }
-}
+my @unwanted_narrative = grep (!$is_term{$_}, @narrative_term);
+my @unwanted_choice = grep (!($is_term{$_} && $owned_by_player{$_}), @choice_term);
+warn "The following symbols have narrative text but are not terminals:\n@unwanted_narrative\n\n" if @unwanted_narrative;
+warn "The following symbols have choice text but are not player terminals:\n@unwanted_choice\n\n" if @unwanted_choice;
 
 print @text;

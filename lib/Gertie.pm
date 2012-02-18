@@ -377,10 +377,9 @@ sub index_symbols {
 	warn "Terminals: (@{$self->term_name})";
     }
 
-    # delete indices we have no further use for
+    # delete transient indices/lookups/variables we have no further use for
     delete $self->{'symbols'};  # use $self->sym_name instead
     delete $self->{'rule_prob_by_name'};
-    delete $self->{'term_owner_by_name'};
     delete $self->{'outgoing_prob_by_name'};
 }
 
