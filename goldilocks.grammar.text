@@ -3,7 +3,6 @@ Actually, you're right: it was Dad who made the porridge.
 
 >along_came_a_little_girl_named@c
 Then, along came a little girl, named....
-
 >along_comes_goldilocks@c
 Yes! Along came a little girl named Goldilocks.
 She smelled the porridge, pushed open the door of the bear's house, and walked inside.
@@ -18,7 +17,7 @@ Daddy Bear said, "Someone's been sleeping in my bed."
 Mummy Bear said, "Someone's been sleeping in MY bed."
 Baby Bear said, "Someone's been sleeping in my bed, and there she is now!"
 
->bears_bowls@p Bears bowls
+>bears_bowls@c
 Then the bears noticed the smashed bowls on the floor.
 Daddy Bear said, "Someone's been smashing our bowls."
 Mummy Bear said, "Someone's been spitting on the floor."
@@ -28,7 +27,7 @@ Baby Bear said, "Someone's been throwing porridge all over the place!"
 Then the bears went over to the chairs.
 Daddy Bear said, "Someone's been sitting in my chair."
 Mummy Bear said, "Someone's been sitting in MY chair."
-Baby Bear said, "Someone's been sitting in my chair too, and they broke it in pieces!"
+Baby Bear said, "Someone's been sitting in my chair, and they broke it in pieces!"
 
 >bears_graffiti@c
 Then the bears saw the writing on the wall by the stairs.
@@ -42,7 +41,7 @@ A little while later, the three bears came home.
 >bears_porridge@c
 The three bears went into the kitchen.
 Daddy Bear said, "Someone's been eating my porridge."
-Mummy Bear said, "Someone's been eating my porridge."
+Mummy Bear said, "Someone's been eating MY porridge."
 Baby Bear said, "Someone's been eating my porridge, and they ate it all up!"
 
 >bears_window@c
@@ -50,6 +49,10 @@ A little while later, the three bears came home
 and noticed the smashed window of their house.
 
 >bike_smashes_window@c
+Indeed; Punkilocks never went anywhere without her bike.
+That morning she was riding in the woods.
+She was in just the mood to eat porridge for breakfast.
+
 Punkilocks revved up the motorbike, as far as it would go.
 Then, she rode straight at the window, smashing it!
 Glass went everywhere, all over the kitchen floor.
@@ -75,7 +78,7 @@ Next, she tried Daddy Bear's rocking chair, but it rocked too fast.
 Next, she tried Baby Bear's rocking chair, and it was just right.
 So she rocked and rocked, until the little chair broke!
 
->goldilocks@p Goldilocks!
+>goldilocks@p Goldilocks
 "Goldilocks!"
 
 >goldilocks_escapes@c
@@ -89,25 +92,25 @@ THE END
 
 >goldilocks_porridge@p Goldilocks eats porridge
 Goldilocks went into the kitchen.
-First, she tried Mummy Bear's porridge, but it was too cold.
-Next, she tried Daddy Bear's porridge, but it was too hot.
-Next, she tried Baby Bear's porridge, and it was just right.
+First, she tried Mummy Bear's porridge; but it was too cold.
+Next, she tried Daddy Bear's porridge; but it was too hot.
+Next, she tried Baby Bear's porridge; and it was just right.
 So Goldilocks ate Baby Bear's porridge. She ate and ate, until she ate it all up!
 
 >how_did_she_get_there@p How did she get there?
-"How did she get there?" you ask.
+"How did she get there? Was she riding a motorbike?" you ask.
 
 >once_upon_a_time_there_were_3_bears@c
 Once upon a time, there were three bears: Mummy Bear, Daddy Bear and Baby Bear.
 They all lived in a house in the woods.
 
 >one_morning_the_porridge_was_too_hot_so_they_went_for_a_walk@c
-One morning, the porridge was too hot, so they went for a walk until it cooled down.
+One morning, the porridge was too hot, so they all went for a walk until it cooled down.
 
->punkilocks@p Punkilocks!
+>punkilocks@p Punkilocks
 "Punkilocks!"
 
->punkilocks_bowls@p Punkilocks smashes the bowls
+>punkilocks_bowls@p She smashes the bowls
 In disgust, Punkilocks smashed the bowls on the floor.
 
 >punkilocks_ending@c
@@ -119,12 +122,12 @@ THE END
 She grabbed her bike from under the stairs, and rode it away as fast as she could!
 >punkilocks_escapes_on_foot@c
 She kicked the front door open and ran away as fast as she could!
->punkilocks_graffiti@p Punkilocks graffiti
+>punkilocks_graffiti@p She writes on the wall
 Next, Punkilocks went upstairs.
 She decided to write some graffiti on the wall.
 She wrote her name, "PUNKILOCKS!", in big pink letters.
 
->punkilocks_porridge@p Punkilocks porridge
+>punkilocks_porridge@p She eats the porridge
 First, Punkilocks tried Mummy Bear's porridge, but it was too cold, so she spat it on the floor.
 Next, she tried Daddy Bear's porridge, but it was too hot, so she spat it at the wall.
 Next, she tried Baby Bear's porridge, and it was just right.
@@ -155,7 +158,7 @@ Angrily, Punkilocks smashed the bowls on the floor.
 "Tell me about Punkilocks."
 
 >tell_me_about_the_bedrooms@p Tell me about the bedrooms
-Tell me about the bedrooms.
+"Tell me about the bedrooms."
 
 >tell_me_about_the_chairs@p Tell me about the chairs
 "Tell me about the chairs."
@@ -179,7 +182,7 @@ That's right.
 There were three bedrooms, one for each bear.
 
 >there_were_3_bowls_and_3_places@c
-There were three bowls at three places on the tiny little kitchen table.
+There were three bowls, and three places at the tiny kitchen table.
 
 >they_all_slept_in_separate_bedrooms@p They all slept in separate bedrooms?
 "Did the bears all sleep in separate bedrooms?"
@@ -189,3 +192,4 @@ They had three rocking chairs, one for each bear.
 
 >what_about_the_house@c
 What would you like to know about the house?
+

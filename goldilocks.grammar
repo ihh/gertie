@@ -43,11 +43,13 @@ along_comes_punkilocks@c how_did_she_get_there@p bike_smashes_window@c;
 
 punkilocks_and_reaction@p ->
   punkilocks_porridge@p girl_chairs@p girl_beds@p
-   bears_window@c bears_porridge@c bears_chairs@c bears_beds@c punkilocks_screams@c
+   bears_window@c tmm bears_porridge@c tmm bears_chairs@c tmm bears_beds@c tmm punkilocks_screams@c
 | punkilocks_porridge@p punkilocks_bowls@p girl_chairs@p girl_beds@p
-   bears_window@c bears_porridge@c bears_bowls@p bears_chairs@c bears_beds@c punkilocks_screams@c
+   bears_window@c tmm bears_porridge@c tmm bears_bowls@c tmm bears_chairs@c tmm bears_beds@c tmm punkilocks_screams@c
 | punkilocks_porridge@p girl_chairs@p punkilocks_graffiti@p girl_beds@p
-   bears_window@c bears_porridge@c bears_chairs@c bears_graffiti@c bears_beds@c punkilocks_screams@c;
+   bears_window@c tmm bears_porridge@c tmm bears_chairs@c tmm bears_graffiti@c tmm bears_beds@c tmm punkilocks_screams@c;
+
+tmm -> tell_me_more@p;
 
 description_of_punkilocks@p -> tell_me_about_punkilocks@p she_had_pink_hair@c;
 description_of_trashed_kitchen@p -> tell_me_about_the_mess@p she_smashed_the_bowls@c;
