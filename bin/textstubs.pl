@@ -19,11 +19,13 @@ $SIG{'INT'} = sub {
 
 my $verbose = 0;
 my $use_stdout = 0;
+my $trim_text = 0;
 my ($grammar_file, $text_file);
 GetOptions ("grammar=s"   => \$grammar_file,
 	    "text=s"   => \$text_file,
 	    "verbose=i"  => \$verbose,
-	    "stdout" => \$use_stdout);
+	    "stdout" => \$use_stdout,
+	    "trim" => \$trim_text);
 
 if (@ARGV && !defined $grammar_file) {
     $grammar_file = shift;
@@ -39,7 +41,7 @@ my $robin = Gertie::Robin->new_from_file
     );
 my $gertie = $robin->gertie;
 
-my @term = @{$gertie->term_name};
+my @term = grep ($_ ne $gertie->end, @{$gertie->term_name});
 my %is_term = map (($_ => 1), @term);
 
 my %choice = %{$robin->choice_text};
@@ -57,6 +59,7 @@ my %owned_by_player = map (($_ => 1),
 
 my @text;
 for my $sym (@sym) {
+    next if $trim_text && !$is_term{$sym};
     my $default = $sym;
     $default =~ s/\@.*$//;
     $default =~ s/_/ /g;
@@ -67,6 +70,10 @@ for my $sym (@sym) {
     }
     if (!defined ($choice = $robin->choice_text->{$sym})) {
 	$choice = $owned_by_player{$sym} ? " $default" : "";
+    } elsif ($trim_text && !$owned_by_player{$sym}) {
+	$choice = "";
+    } else {
+	$choice = " $choice";
     }
     push @text, ">$sym$choice\n$narrative";
 }

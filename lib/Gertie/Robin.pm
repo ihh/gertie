@@ -242,17 +242,17 @@ sub player_choice {
 
 	if ($self->player_turns > 0) {
 	    push @item_callback,
-	    [$meta_color . "(review transcript)", sub { print "\n", $narrative_color, $self->story_so_far } ];
+	    [$meta_color . "(the story so far)", sub { print "\n", $narrative_color, $self->story_so_far } ];
 	}
 
 	if ($max < $#options) {
 	    push @item_callback,
-	    [$meta_color . "(more options)", sub { ++$page }];
+	    [$meta_color . "(more choices)", sub { ++$page }];
 	}
 
 	if ($page > 0) {
 	    push @item_callback,
-	    [$meta_color . "(previous options)", sub { --$page }];
+	    [$meta_color . "(previous choices)", sub { --$page }];
 	}
 
 	# variables determining whether to print the menu
