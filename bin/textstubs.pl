@@ -18,11 +18,12 @@ $SIG{'INT'} = sub {
 };
 
 my $verbose = 0;
+my $use_stdout = 0;
 my ($grammar_file, $text_file);
 GetOptions ("grammar=s"   => \$grammar_file,
 	    "text=s"   => \$text_file,
 	    "verbose=i"  => \$verbose,
-    );
+	    "stdout" => \$use_stdout);
 
 if (@ARGV && !defined $grammar_file) {
     $grammar_file = shift;
@@ -65,9 +66,9 @@ for my $sym (@sym) {
 	$narrative = "$default.\n\n";
     }
     if (!defined ($choice = $robin->choice_text->{$sym})) {
-	$choice = $default;
+	$choice = $owned_by_player{$sym} ? " $default" : "";
     }
-    push @text, ">$sym $choice\n$narrative";
+    push @text, ">$sym$choice\n$narrative";
 }
 
 my @unwanted_narrative = grep (!$is_term{$_}, @narrative_term);
@@ -75,4 +76,13 @@ my @unwanted_choice = grep (!($is_term{$_} && $owned_by_player{$_}), @choice_ter
 warn "The following symbols have narrative text but are not terminals:\n@unwanted_narrative\n\n" if @unwanted_narrative;
 warn "The following symbols have choice text but are not player terminals:\n@unwanted_choice\n\n" if @unwanted_choice;
 
-print @text;
+if ($use_stdout) {
+    print @text;
+} else {
+    my $outfile = $robin->text_filename;
+    warn "Writing to $outfile\n";
+    local *FILE;
+    open FILE, ">$outfile" or die "Couldn't open $outfile: $!";
+    print FILE @text;
+    close FILE or die "Couldn't close $outfile: $!";
+}

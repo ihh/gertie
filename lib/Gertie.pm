@@ -370,6 +370,7 @@ sub index_symbols {
 	    }
 	}
     }
+    %{$self->term_owner_by_name} = map (($self->sym_name->[$_] => $self->term_owner->{$_}), @{$self->term_id});
 
     # Log
     if ($self->verbose) {

@@ -231,7 +231,9 @@ sub player_choice {
 	# Create menu text
 	my @menu = @options[$min..$max];
 	my $tidy = sub { local $_ = shift; s/\@\w+$//; return $_ };
-	if (defined $choice_text) { @menu = map (defined($choice_text->{$_}) ? $choice_text->{$_} : &$tidy($_),
+	if (defined $choice_text) { @menu = map (defined($choice_text->{$_}) && length($choice_text->{$_})
+						 ? $choice_text->{$_}
+						 : &$tidy($_),
 						 @menu) }
 
 	# Create menu callbacks
