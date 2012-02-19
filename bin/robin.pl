@@ -19,7 +19,7 @@ $SIG{'INT'} = sub {
 my $verbose = 0;
 my $color = 0;
 my $c_parser = 0;
-my ($grammar_file, $text_file, $trace_file, $seed, $rounds);
+my ($grammar_file, $text_file, $game_file, $trace_file, $seed, $rounds);
 GetOptions ("grammar=s"   => \$grammar_file,
 	    "text=s"   => \$text_file,
 	    "trace=s"  => \$trace_file,
@@ -27,7 +27,8 @@ GetOptions ("grammar=s"   => \$grammar_file,
 	    "seed=i"  => \$seed,
 	    "rounds=i"  => \$rounds,
 	    "color" => \$color,
-	    "cparser" => \$c_parser);
+	    "cparser" => \$c_parser,
+	    "restore=s" => \$game_file);  # not yet used
 
 if (@ARGV && !defined $grammar_file) {
     $grammar_file = shift;
