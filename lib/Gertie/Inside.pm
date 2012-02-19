@@ -90,7 +90,9 @@ sub final_total {
 
 sub continue_prob {
     my ($self) = @_;
-    return $self->final_q / $self->final_total;
+    my $total = $self->final_total;
+    confess "Division by zero" if $total == 0;
+    return $self->final_q / $total;
 }
 
 sub to_string {

@@ -21,6 +21,8 @@ sub new_robin {
 
 			       'seq' => [],
 			       'tokseq' => [],
+			       'seq_turn' => [],
+
 			       'inside' => undef,
 
 			       'choice_text' => undef,
@@ -34,6 +36,7 @@ sub new_robin {
 
 			       'trace_filename' => undef,
 			       'text_filename' => undef,
+			       'default_save_filename' => 'GAME',
 
 			       'use_color' => 0,
 			       'verbose' => 0,
@@ -117,6 +120,7 @@ sub parse_text_line {
 	my ($name, $choice) = ($1, $2);
 	carp "Multiple definitions of $name -- overwriting" if defined $self->choice_text->{$name};
 	$self->choice_text->{$name} = $choice;
+	$self->narrative_text->{$name} = "";
 	$self->current_text_symbol ($name);
     } elsif (defined $self->current_text_symbol) {
 	$self->narrative_text->{$self->current_text_symbol} .= $line;
@@ -128,11 +132,8 @@ sub parse_text_line {
 # play method
 sub play {
     my ($self, @args) = @_;
-    $self->inside ($self->gertie->prefix_Inside ([], @args));  # initialize empty Inside matrix
-    $self->inside->verbose ($self->verbose);  # make the Inside matrix as verbose as we are, for log tidiness
-    $self->{'turns'} = { map (($_ => 0), @{$self->gertie->agents}) };
-
-    my $narrative_text = $self->narrative_text;
+    $self->{'inside_args'} = \@args;
+    $self->reset();
 
     if ($self->use_color) { $self->use_cool_color_scheme } else { $self->use_boring_color_scheme }
     my $log_color = $self->log_color;
@@ -147,7 +148,8 @@ sub play {
 
     my $trace_fh;
     if (defined $self->trace_filename) {
-	$trace_fh = FileHandle->new (">".$self->trace_filename) or confess "Couldn't open ", $self->trace_filename, ": $!";
+	$trace_fh = FileHandle->new (">".$self->trace_filename)
+	    or confess "Couldn't open ", $self->trace_filename, ": $!";
 	autoflush $trace_fh 1;
     }
     $self->{'trace_fh'} = $trace_fh;
@@ -165,8 +167,10 @@ GAMELOOP:
 
 	# status/log messages
 	if ($self->verbose) {
+	    print $log_color, "Turn: ", $turn, $reset_nl;
 	    print $log_color, "Round: ", $round + 1, $reset_nl;
-	    print $log_color, "Turn: $agent", $reset_nl;
+	    print $log_color, "Agent: $agent", $reset_nl;
+	    print $log_color, "Player turns: ", $self->player_turns, $reset_nl;
 	    print $log_color, "Sequence: (@{$self->seq})", $reset_nl;
 	    print $log_color, "Inside matrix:\n", $self->inside->to_string, $reset_nl if $self->verbose > 9;
 	}
@@ -196,21 +200,16 @@ GAMELOOP:
 	}
 
 	# record the turn
-	++$self->turns->{$agent};
-	push @{$self->seq}, $next_term;
-	push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
-	if (defined $trace_fh) { print $trace_fh "$next_term\n" }
+	$self->record_turn ($next_term);
 
 	# print narrative text
 	print $self->narrative_color, $self->story_excerpt;
 
+	# log
 	if ($self->verbose) {
 	    print @begin_log;
 	    print $log_color, "Terminal: $next_term", $reset_nl;
 	}
-
-	# update Inside matrix
-	$self->inside->push_sym ($next_term);
     }
 
     print @end_log if $self->verbose;
@@ -238,16 +237,79 @@ sub current_round {
     return $round;
 }
 
+sub record_turn {
+    my ($self, $next_term) = @_;
+    my $agent = $self->gertie->term_owner_by_name->{$next_term};
+    my $trace_fh = $self->trace_fh;
+    ++$self->turns->{$agent};
+    push @{$self->seq}, $next_term;
+    push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
+    push @{$self->seq_turn}, $self->current_turn;
+    if (defined $trace_fh) { print $trace_fh "Pushed $next_term\n" }
+
+    # update Inside matrix
+    $self->inside->push_sym ($next_term);
+}
+
 sub undo_turn {
-    my ($self, $n_turns) = @_;
-    $n_turns = @{$self->gertie->agents} unless defined $n_turns;
-    for (my $n = 0; $n < $n_turns; ++$n) {
-	--$self->turns->{$self->current_agent};
+    my ($self, $agent) = @_;
+    my $trace_fh = $self->trace_fh;
+    while (@{$self->seq}) {
 	my $undone_term = pop @{$self->seq};
 	my $undone_term_id = pop @{$self->tokseq};
 	$self->inside->pop_tok();
-	--$self->{'current_turn'};
+	$self->current_turn (pop @{$self->seq_turn});
+	--$self->turns->{$self->current_agent};
+	if (defined $trace_fh) { print $trace_fh "Popped $undone_term\n" }
+	last if !defined($agent) || $agent eq $self->current_agent;
     }
+}
+
+sub reset {
+    my ($self) = @_;
+    $self->seq ([]);
+    $self->tokseq ([]);
+    $self->seq_turn ([]);
+    $self->inside ($self->gertie->prefix_Inside ([], @{$self->inside_args}));  # initialize empty Inside matrix
+    $self->inside->verbose ($self->verbose);  # make the Inside matrix as verbose as we are, for log tidiness
+    $self->{'turns'} = { map (($_ => 0), @{$self->gertie->agents}) };
+}
+
+sub load_game {
+    my ($self, $filename) = @_;
+    $self->reset;
+    local *FILE;
+    local $_;
+    open FILE, "<$filename" or die "Couldn't open $filename: $!";
+    while (<FILE>) {
+	my ($turn, $term) = split;
+	$self->current_turn ($turn);
+	$self->record_turn ($term);
+    }
+    close FILE;
+    ++$self->{'current_turn'};
+}
+
+sub save_game {
+    my ($self, $filename) = @_;
+    local *FILE;
+    open FILE, ">$filename" or die "Couldn't open $filename: $!";
+    for (my $n = 0; $n < @{$self->seq}; ++$n) {
+	print FILE $self->seq_turn->[$n], " ", $self->seq->[$n], "\n";
+    }
+    close FILE or die "Couldn't close $filename: $!";
+}
+
+sub get_save_filename {
+    my ($self) = @_;
+    print
+	$self->meta_color,
+	"Please enter a filename (default is ", $self->default_save_filename, ")",
+	$self->reset_color, "\n";
+    my $filename = <>;
+    chomp $filename;
+    $filename = $self->default_save_filename unless length($filename);
+    return $filename;
 }
 
 sub player_choice {
@@ -282,11 +344,13 @@ sub player_choice {
 	my @item_callback = map ([$choice_color . $_, sub { $choice = shift() + $min; print "\n" }],
 				 @menu);
 
+	my $story_so_far = sub { print "\n", $narrative_color, $self->story_so_far };
 	if ($self->player_turns > 0) {
-	    my $story_so_far = sub { print "\n", $narrative_color, $self->story_so_far };
 	    push @item_callback,
-	    [$meta_color . "(the story so far)", $story_so_far ],
-	    [$meta_color . "(undo my last choice)", sub { $self->undo_turn(); &$story_so_far(); $choice = -1 } ];
+	    [$meta_color . "(review the story so far)", $story_so_far ],
+	    [$meta_color . "(undo my last choice)", sub { $self->undo_turn ($self->gertie->player_agent);
+							  &$story_so_far();
+							  $choice = -1 } ];
 	}
 
 	if ($max < $#options) {
@@ -298,6 +362,12 @@ sub player_choice {
 	    push @item_callback,
 	    [$meta_color . "(previous choices)", sub { --$page }];
 	}
+
+	push @item_callback,
+	[$meta_color . "(save the game)", sub { $self->save_game ($self->get_save_filename) }],
+	[$meta_color . "(load a previous game)", sub { $self->load_game ($self->get_save_filename);
+						       &$story_so_far();
+						       $choice = -1 }];
 
 	# variables determining whether to print the menu
 	my $display_choices = 1;
