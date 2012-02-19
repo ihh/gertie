@@ -245,7 +245,7 @@ sub record_turn {
     push @{$self->seq}, $next_term;
     push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
     push @{$self->seq_turn}, $self->current_turn;
-    if (defined $trace_fh) { print $trace_fh "Pushed $next_term\n" }
+    if (defined $trace_fh) { print $trace_fh "PUSH $next_term\n" }
 
     # update Inside matrix
     $self->inside->push_sym ($next_term);
@@ -260,7 +260,7 @@ sub undo_turn {
 	$self->inside->pop_tok();
 	$self->current_turn (pop @{$self->seq_turn});
 	--$self->turns->{$self->current_agent};
-	if (defined $trace_fh) { print $trace_fh "Popped $undone_term\n" }
+	if (defined $trace_fh) { print $trace_fh "POP $undone_term\n" }
 	last if !defined($agent) || $agent eq $self->current_agent;
     }
 }

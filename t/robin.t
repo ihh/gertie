@@ -32,25 +32,25 @@ my $command = "cat $fn_in | $robin $grammar -seed $seed -trace $fn_log -rounds $
 # warn $command;
 system $command;
 my $expected = <<END;
-intro
-p1
-c3
-p2
-c0
-p1
-c1
-p2
-c0
-p1
-c3
-p2
-c0
-p1
-c3
-p2
-c0
-p1
-c1
+PUSH intro
+PUSH p1
+PUSH c3
+PUSH p2
+PUSH c0
+PUSH p1
+PUSH c1
+PUSH p2
+PUSH c0
+PUSH p1
+PUSH c3
+PUSH p2
+PUSH c0
+PUSH p1
+PUSH c3
+PUSH p2
+PUSH c0
+PUSH p1
+PUSH c1
 END
 my $actual = `cat $fn_log`;
 test ($actual, $expected, "Reproducible Robin trace");
