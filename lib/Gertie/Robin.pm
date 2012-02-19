@@ -148,9 +148,18 @@ sub play {
 	$trace_fh = FileHandle->new (">".$self->trace_filename) or confess "Couldn't open ", $self->trace_filename, ": $!";
 	autoflush $trace_fh 1;
     }
+    $self->{'trace_fh'} = $trace_fh;
 
-  GAMELOOP: for (my $round = 0; !defined($self->max_rounds) || $round < $self->max_rounds; ++$round) {
-    ROUNDROBIN: for my $agent (@{$self->gertie->agents}) {
+    my $n_agents = @{$self->gertie->agents};
+GAMELOOP:    
+    for ($self->{'current_turn'} = 0;
+	 !defined($self->max_rounds) || $self->current_round() < $self->max_rounds;
+	 ++$self->{'current_turn'}) {
+
+	my $turn = $self->current_turn;
+	my $round = $self->current_round;
+	my $agent = $self->current_agent;
+
 	# status/log messages
 	if ($self->verbose) {
 	    print $log_color, "Round: ", $round + 1, $reset_nl;
@@ -166,7 +175,7 @@ sub play {
 	my @next_prob = map ($term_prob{$_}, @next_term);
 	unless (@next_term) {
 	    print $log_color, "No available move for $agent", $reset_nl if $self->verbose;
-	    next ROUNDROBIN;
+	    next GAMELOOP;
 	}
 
 	# get next terminal from appropriate agent
@@ -174,6 +183,11 @@ sub play {
 	print @end_log if $self->verbose;
 	if ($agent eq $self->gertie->player_agent) {
 	    $next_term = $self->player_choice (@next_term);
+	    # hack: if player_choice returns undef, then rebuild menu
+	    if (!defined $next_term) {
+		--$self->{'current_turn'};
+		next GAMELOOP;
+	    }
 	} else {
 	    $next_term = Gertie::sample (\@next_prob, \@next_term);
 	}
@@ -199,12 +213,41 @@ sub play {
 	# update Inside matrix
 	$self->inside->push_sym ($next_term);
     }
-  }
 
     print @end_log if $self->verbose;
 
     if (defined $trace_fh) {
 	$trace_fh->close or confess "Couldn't close ", $self->trace_filename, ": $!";
+	delete $self->{'trace_fh'};
+    }
+}
+
+sub current_agent {
+    my ($self) = @_;
+    my $turn = $self->current_turn;
+    my $n_agents = @{$self->gertie->agents};
+    my $round = int ($turn / $n_agents);
+    my $agent = $self->gertie->agents->[$turn % $n_agents];
+    return $agent;
+}
+
+sub current_round {
+    my ($self) = @_;
+    my $turn = $self->current_turn;
+    my $n_agents = @{$self->gertie->agents};
+    my $round = int ($turn / $n_agents);
+    return $round;
+}
+
+sub undo_turn {
+    my ($self, $n_turns) = @_;
+    $n_turns = @{$self->gertie->agents} unless defined $n_turns;
+    for (my $n = 0; $n < $n_turns; ++$n) {
+	--$self->turns->{$self->current_agent};
+	my $undone_term = pop @{$self->seq};
+	my $undone_term_id = pop @{$self->tokseq};
+	$self->inside->pop_tok();
+	--$self->{'current_turn'};
     }
 }
 
@@ -241,8 +284,10 @@ sub player_choice {
 				 @menu);
 
 	if ($self->player_turns > 0) {
+	    my $story_so_far = sub { print "\n", $narrative_color, $self->story_so_far };
 	    push @item_callback,
-	    [$meta_color . "(the story so far)", sub { print "\n", $narrative_color, $self->story_so_far } ];
+	    [$meta_color . "(the story so far)", $story_so_far ],
+	    [$meta_color . "(undo my last choice)", sub { $self->undo_turn(); &$story_so_far(); $choice = -1 } ];
 	}
 
 	if ($max < $#options) {
@@ -334,7 +379,7 @@ sub player_choice {
 	# act on user choice
 	&{$item_callback[$n]->[1]} ($n);
     }
-    return $options[$choice];
+    return $choice < 0 ? undef : $options[$choice];
 }
 
 sub story_so_far {
