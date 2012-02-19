@@ -308,6 +308,7 @@ sub get_save_filename {
 	$self->reset_color, "\n";
     my $filename = <>;
     chomp $filename;
+    $filename =~ s/^\s*(.*?)\s*$/$1/;
     $filename = $self->default_save_filename unless length($filename);
     return $filename;
 }
