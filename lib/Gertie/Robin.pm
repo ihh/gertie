@@ -31,12 +31,14 @@ sub new_robin {
 
 			       'turns' => {},
 			       'max_rounds' => undef,
+			       'current_turn' => undef,
 
 			       'options_per_page' => 3,
 
 			       'trace_filename' => undef,
 			       'text_filename' => undef,
 			       'default_save_filename' => 'GAME',
+			       'initial_restore_filename' => undef,
 
 			       'use_color' => 0,
 			       'verbose' => 0,
@@ -79,9 +81,9 @@ sub reset_nl {
 }
 
 sub new_from_file {
-    my ($class, $filename, @args) = @_;
-    my $gertie = Gertie->new_from_file ($filename, @args);
-    my $self = $class->new_robin ($gertie, 'text_filename' => "$filename.text", @args);
+    my ($class, $filename, %args) = @_;
+    my $gertie = Gertie->new_from_file ($filename, defined($args{'gertie_args'}) ? @{$args{'gertie_args'}} : ());
+    my $self = $class->new_robin ($gertie, 'text_filename' => "$filename.text", %args);
     $self->load_text_from_file ($self->text_filename) if -e $self->text_filename;
     # return
     return $self;
@@ -136,8 +138,8 @@ sub parse_text_line {
 
 # play method
 sub play {
-    my ($self, @args) = @_;
-    $self->{'inside_args'} = \@args;
+    my ($self) = @_;
+
     $self->reset();
 
     if ($self->use_color) { $self->use_cool_color_scheme } else { $self->use_boring_color_scheme }
@@ -158,6 +160,8 @@ sub play {
 	autoflush $trace_fh 1;
     }
     $self->{'trace_fh'} = $trace_fh;
+
+    $self->load_game ($self->initial_restore_filename) if defined $self->initial_restore_filename;
 
     print $self->narrative_color, $self->story_excerpt, $self->reset_color;
     my $n_agents = @{$self->gertie->agents};
@@ -294,7 +298,8 @@ sub load_game {
     }
     close FILE;
     ++$self->{'current_turn'};
-    print $self->meta_color, "OK, game restored from file '$filename'.", $self->reset_nl;
+    print $self->meta_color, "Game restored from file '$filename'.", $self->reset_nl;
+    $self->print_story_so_far;
 }
 
 sub save_game {
@@ -370,12 +375,11 @@ sub player_choice {
 	my @item_callback = map ([$choice_color . $_, sub { $choice = shift() + $min; print "\n" }],
 				 @menu);
 
-	my $story_so_far = sub { print "\n", $narrative_color, $self->story_so_far };
 	if ($self->player_turns > 0) {
 	    push @item_callback,
-	    [$meta_color . "(review the story so far)", $story_so_far ],
+	    [$meta_color . "(review the story so far)", sub { $self->print_story_so_far } ],
 	    [$meta_color . "(undo my last choice)", sub { $self->undo_turn ($self->gertie->player_agent);
-							  &$story_so_far();
+							  $self->print_story_so_far;
 							  $choice = -1 } ];
 	}
 
@@ -392,9 +396,7 @@ sub player_choice {
 	push @item_callback,
 	[$meta_color . "(save the game)", sub { $self->save_game ($self->get_save_filename);
 						print "\n", $narrative_color, $self->story_excerpt, $self->reset_color }],
-	[$meta_color . "(restore the game)", sub { $self->load_game ($self->get_save_filename);
-						   &$story_so_far();
-						   $choice = -1 }];
+	[$meta_color . "(restore the game)", sub { $self->load_game ($self->get_save_filename); $choice = -1 }];
 
 	# variables determining whether to print the menu
 	my $display_choices = 1;
@@ -478,9 +480,9 @@ sub player_choice {
     return $choice < 0 ? undef : $options[$choice];
 }
 
-sub story_so_far {
+sub print_story_so_far {
     my ($self) = @_;
-    return $self->story_excerpt (0, $self->story_episodes - 1);
+    print "\n", $self->narrative_color, $self->story_excerpt (0, $self->story_episodes - 1), $self->reset_color;
 }
 
 sub story_episodes {

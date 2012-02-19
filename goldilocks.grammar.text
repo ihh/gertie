@@ -69,14 +69,14 @@ Er, well... yes, they all slept in separate beds.
 Every morning, Mummy Bear made them all porridge for breakfast.
 
 >girl_beds@p She goes to bed
-Next, %{$girl}% felt sleepy, so she climbed upstairs to the bedrooms.
+Next, %{$hero}% felt sleepy, so she climbed upstairs to the bedrooms.
 First, she tried Mummy Bear's bed, but it was too soft.
 Next, she tried Daddy Bear's bed, but it was too hard.
 Next, she tried Baby Bear's bed, and it was just right.
 So she lay down in Baby Bear's bed; and soon, she fell asleep.
 
 >girl_chairs@p She sits down
-After eating, %{$girl}% felt like sitting down.
+After eating, %{$hero}% felt like sitting down.
 First, she tried Mummy Bear's rocking chair, but it rocked too slow.
 Next, she tried Daddy Bear's rocking chair, but it rocked too fast.
 Next, she tried Baby Bear's rocking chair, and it was just right.

@@ -39,14 +39,16 @@ die "You must specify a filename" unless defined $grammar_file;
 my $robin = Gertie::Robin->new_from_file
     ($grammar_file,
      'verbose' => $verbose,
+     'inside_args' => [ 'verbose' => $verbose ],
+     'gertie_args' => [ 'verbose' => $verbose, 'use_c_parser' => $c_parser ],
      defined($text_file) ? ('text_filename' => $text_file) : (),  # don't override default
      'trace_filename' => $trace_file,
+     'initial_restore_filename' => $game_file,
      'rand_seed' => $seed,
      'max_rounds' => $rounds,
-     'use_color' => $color,
-     'use_c_parser' => $c_parser);
+     'use_color' => $color);
 
-$robin->play ('verbose' => $verbose);
+$robin->play;
 
 
 END {

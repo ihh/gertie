@@ -20,7 +20,6 @@ sub evaluate {
 	    my $__val__ = eval($__expr__);
 	    $__val__ = "" unless defined $__val__;
 	    s/\%\{(.*?)\}\%/$__val__/;
-#	    warn "dedication=",$v{'dedication'};
 	}
 	s/\\\n//g;
     }
