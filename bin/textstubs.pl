@@ -57,7 +57,7 @@ my %owned_by_player = map (($_ => 1),
 			   grep (defined($gertie->term_owner_by_name->{$_})
 				 && $gertie->term_owner_by_name->{$_} eq $gertie->player_agent, @term));
 
-my @text;
+my @text = ($robin->preamble_text);
 for my $sym (@sym) {
     next if $trim_text && !$is_term{$sym};
     my $default = $sym;

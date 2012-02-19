@@ -9,6 +9,7 @@ extends 'AutoHash';
 
 use Gertie;
 use Gertie::Inside;
+use Gertie::Evaluator;
 
 use strict;
 
@@ -151,7 +152,7 @@ sub play {
     }
     $self->{'trace_fh'} = $trace_fh;
 
-    print $self->narrative_color, $self->preamble_text, $self->reset_color;
+    print $self->narrative_color, $self->story_excerpt, $self->reset_color;
     my $n_agents = @{$self->gertie->agents};
 GAMELOOP:    
     for ($self->{'current_turn'} = 0;
@@ -201,11 +202,7 @@ GAMELOOP:
 	if (defined $trace_fh) { print $trace_fh "$next_term\n" }
 
 	# print narrative text
-	print
-	    $self->narrative_color,
-	    (defined($narrative_text) && defined($narrative_text->{$next_term})
-	     ? $narrative_text->{$next_term}
-	     : "$next_term\n");
+	print $self->narrative_color, $self->story_excerpt;
 
 	if ($self->verbose) {
 	    print @begin_log;
@@ -386,16 +383,30 @@ sub player_choice {
 
 sub story_so_far {
     my ($self) = @_;
+    return $self->story_excerpt (0, $self->story_episodes - 1);
+}
+
+sub story_episodes {
+    my ($self) = @_;
+    return @{$self->seq} + 1;  # the extra 1 is the preamble
+}
+
+sub story_excerpt {
+    my ($self, $first_turn, $last_turn) = @_;
+    $first_turn = $self->story_episodes - 1 unless defined $first_turn;
+    $last_turn = $first_turn unless defined $last_turn;
     my @out = ($self->preamble_text);
     my $narrative_text = $self->narrative_text;
-    for my $sym (@{$self->seq}) {
+    for my $turn (1..$last_turn) {
+	my $sym = $self->seq->[$turn - 1];
 	if (defined($narrative_text) && defined($narrative_text->{$sym})) {
 	    push @out, $narrative_text->{$sym};
 	} else {
 	    push @out, "$sym\n";
 	}
     }
-    return join ("", @out);
+    @out = Gertie::Evaluator::evaluate (@out);
+    return @out[$first_turn..$last_turn];
 }
 
 sub player_turns {

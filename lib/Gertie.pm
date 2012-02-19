@@ -305,6 +305,7 @@ sub index_symbols {
 
     # build transition graph
     my $graph = Graph::Directed->new;
+    $self->{'graph'} = $graph;
     for my $sym (keys %{$self->symbol}) {
 	$graph->add_vertex ($sym);
     }
@@ -383,6 +384,17 @@ sub index_symbols {
     delete $self->{'rule_prob_by_name'};
     delete $self->{'outgoing_prob_by_name'};
 }
+
+sub dense_graph {
+    my ($self) = @_;
+    my $graph = $self->graph->copy_graph;
+    for my $rule (@{$self->rule}) {
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
+	$graph->add_edge ($lhs, $rhs2) unless $graph->has_edge ($lhs, $rhs2);
+    }
+    return $graph;
+}
+
 
 sub player_agent {
     my ($self) = @_;

@@ -1,57 +1,58 @@
-The story of Goldilocks
+The Story of Goldilocks
 =======================
->actually_it_was_dad@c
+%{ my $hero }%
+>actually_it_was_dad@c 
 Actually, you're right; it was Dad who made the porridge, in the Bear House.
 Some mornings he even cooked eggs and bacon. But not this time...
 
->along_came_a_little_girl_named@c
+>along_came_a_little_girl_named@c 
 Then, along came a little girl, named....
->along_comes_goldilocks@c
+>along_comes_goldilocks@c 
 Yes! Along came a little girl named Goldilocks.
 She smelled the porridge, pushed open the door of the bear's house, and walked inside.
 
->along_comes_punkilocks@c
+>along_comes_punkilocks@c 
 Yes! Along came a girl named Punkilocks.
 She saw the porridge through the bears' window, and decided to go inside.
 
->bears_beds@c
+>bears_beds@c 
 Then the bears went into the bedrooms.
 Daddy Bear said, "Someone's been sleeping in my bed."
 Mummy Bear said, "Someone's been sleeping in MY bed."
 Baby Bear said, "Someone's been sleeping in my bed, and there she is now!"
 
->bears_bowls@c
+>bears_bowls@c 
 Then the bears noticed the smashed bowls on the floor.
 Daddy Bear said, "Someone's been smashing our bowls."
 Mummy Bear said, "Someone's been spitting on the floor."
 Baby Bear said, "Someone's been throwing porridge all over the place!"
 
->bears_chairs@c
+>bears_chairs@c 
 Then the bears went over to the chairs.
 Daddy Bear said, "Someone's been sitting in my chair."
 Mummy Bear said, "Someone's been sitting in MY chair."
 Baby Bear said, "Someone's been sitting in my chair, and they broke it in pieces!"
 
->bears_graffiti@c
+>bears_graffiti@c 
 Then the bears saw the writing on the wall by the stairs.
 Daddy Bear said, "Someone's been using my pen."
 Mummy Bear said, "Someone's been writing on my wall."
 Baby Bear said, "Someone's been in my house, and her name is PUNKILOCKS!"
 
->bears_home@c
+>bears_home@c 
 A little while later, the three bears came home.
 
->bears_porridge@c
+>bears_porridge@c 
 The three bears went into the kitchen.
 Daddy Bear said, "Someone's been eating my porridge."
 Mummy Bear said, "Someone's been eating MY porridge."
 Baby Bear said, "Someone's been eating my porridge, and they ate it all up!"
 
->bears_window@c
+>bears_window@c 
 A little while later, the three bears came home
 and noticed the smashed window of their house.
 
->bike_smashes_window@c
+>bike_smashes_window@c 
 Punkilocks never went anywhere without her bike.
 That morning she was riding in the woods.
 She was in just the mood to eat porridge for breakfast.
@@ -61,37 +62,37 @@ Then, she rode straight at the window, smashing it!
 Glass went everywhere, all over the kitchen floor.
 Quickly, she hid her bike under the stairs.
 
->er_well_yes@c
+>er_well_yes@c 
 Er, well... yes, they all slept in separate beds.
 
->every_morning_mum_made_porridge@c
+>every_morning_mum_made_porridge@c 
 Every morning, Mummy Bear made them all porridge for breakfast.
 
 >girl_beds@p She goes to bed
-Next, she felt sleepy, so she climbed upstairs to the bedrooms.
+Next, %{$girl}% felt sleepy, so she climbed upstairs to the bedrooms.
 First, she tried Mummy Bear's bed, but it was too soft.
 Next, she tried Daddy Bear's bed, but it was too hard.
 Next, she tried Baby Bear's bed, and it was just right.
 So she lay down in Baby Bear's bed; and soon, she fell asleep.
 
 >girl_chairs@p She sits down
-After eating, she felt like sitting down.
+After eating, %{$girl}% felt like sitting down.
 First, she tried Mummy Bear's rocking chair, but it rocked too slow.
 Next, she tried Daddy Bear's rocking chair, but it rocked too fast.
 Next, she tried Baby Bear's rocking chair, and it was just right.
 So she rocked and rocked, until the little chair broke!
 
 >goldilocks@p Goldilocks
-"Goldilocks!"
+"Goldilocks!" %{ $hero = "Goldilocks" }%
 
->goldilocks_escapes@c
-When Baby Bear said that, Goldilocks woke up, and saw the three bears standing there.
-She got out of bed and ran downstairs, out of the house and out of the woods, as fast as she could!
-
->goldilocks_ending@c
+>goldilocks_ending@c 
 And the three bears never saw Goldilocks ever again.
 
 THE END
+
+>goldilocks_escapes@c 
+When Baby Bear said that, Goldilocks woke up, and saw the three bears standing there.
+She got out of bed and ran downstairs, out of the house and out of the woods, as fast as she could!
 
 >goldilocks_porridge@p Goldilocks eats porridge
 Goldilocks went into the kitchen.
@@ -103,27 +104,27 @@ So Goldilocks ate Baby Bear's porridge. She ate and ate, until she ate it all up
 >how_did_she_get_there@p How did she get there?
 "How did she get there?" you ask.
 
->once_upon_a_time_there_were_3_bears@c
+>once_upon_a_time_there_were_3_bears@c 
 Once upon a time, there were three bears: Mummy Bear, Daddy Bear and Baby Bear.
 They all lived in a house in the woods.
 
->one_morning_the_porridge_was_too_hot_so_they_went_for_a_walk@c
+>one_morning_the_porridge_was_too_hot_so_they_went_for_a_walk@c 
 One morning, the porridge was too hot, so they all went for a walk until it cooled down.
 
 >punkilocks@p Punkilocks
-"Punkilocks!"
+"Punkilocks!" %{ $hero = "Punkilocks" }%
 
 >punkilocks_bowls@p She smashes the bowls
 In disgust, Punkilocks smashed the bowls on the floor.
 
->punkilocks_ending@c
+>punkilocks_ending@c 
 And Punkilocks never saw the three bears ever again.
 
 THE END
 
->punkilocks_escapes_on_bike@c
+>punkilocks_escapes_on_bike@c 
 She grabbed her bike from under the stairs, and rode it away as fast as she could!
->punkilocks_escapes_on_foot@c
+>punkilocks_escapes_on_foot@c 
 She kicked the front door open and ran away as fast as she could!
 >punkilocks_graffiti@p She writes on the wall
 Next, Punkilocks went upstairs.
@@ -140,22 +141,22 @@ Next, she tried Daddy Bear's porridge, but it was too hot, so she spat it at the
 Next, she tried Baby Bear's porridge, and it was just right.
 So Punkilocks ate Baby Bear's porridge. She ate as fast as she could, until she ate it all up!
 
->punkilocks_screams@c
+>punkilocks_screams@c 
 When Baby Bear said that, Punkilocks woke up,
 saw the three bears standing there, and shouted "BLEURGH!!!!!"
 She tore off the sheets and ran down the stairs,
 kicking toys out of her way.
->punkilocks_smashes_window@c
+>punkilocks_smashes_window@c 
 Punkilocks saw the porridge through the window, and decided to eat it.
 She smashed the window and climbed into the house.
 
 >really_mum_and_not_dad@p Are you sure that's how it went? Mum made the breakfast?
 "Really? Mum made the breakfast, and not Dad?"
 
->she_had_pink_hair@c
+>she_had_pink_hair@c 
 She had pink hair, a leather jacket and a mean look.
 
->she_smashed_the_bowls@c
+>she_smashed_the_bowls@c 
 Angrily, Punkilocks smashed the bowls on the floor.
 
 >surely_dad@p It MUST have been Dad.
@@ -182,21 +183,21 @@ Angrily, Punkilocks smashed the bowls on the floor.
 >tell_me_more@p Tell me more of the story
 "Tell me more of the story."
 
->thats_right@c
+>thats_right@c 
 That's right.
 
->there_were_3@c
+>there_were_3@c 
 There were three bedrooms, one for each bear.
 
->there_were_3_bowls_and_3_places@c
+>there_were_3_bowls_and_3_places@c 
 There were three bowls, and three places at the tiny kitchen table.
 
 >they_all_slept_in_separate_bedrooms@p They all slept in separate bedrooms?
 "Did the bears all sleep in separate bedrooms?"
 
->they_had_3_rocking_chairs@c
+>they_had_3_rocking_chairs@c 
 They had three rocking chairs, one for each bear.
 
->what_about_the_house@c
+>what_about_the_house@c 
 What would you like to know about the house?
 
