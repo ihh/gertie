@@ -54,3 +54,5 @@ tmm -> tell_me_more@p;
 description_of_punkilocks@p -> tell_me_about_punkilocks@p she_had_pink_hair@c;
 description_of_trashed_kitchen@p -> tell_me_about_the_mess@p she_smashed_the_bowls@c;
 
+// TODO: s/\%\{(.*?)\}\%/@{[eval($1)]}/g on narrative text, implemented as function in separate module w/lots of helpers
+// TODO: a similar eval, e.g. %[...]% instead of ${...}%, can be used to compute weights for importance sampling
