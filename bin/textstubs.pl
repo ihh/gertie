@@ -44,8 +44,8 @@ my $gertie = $robin->gertie;
 my @term = grep ($_ ne $gertie->end, @{$gertie->term_name});
 my %is_term = map (($_ => 1), @term);
 
-my %choice = %{$robin->choice_text};
-my %narrative = %{$robin->narrative_text};
+my %choice = defined($robin->choice_text) ? %{$robin->choice_text} : ();
+my %narrative = defined($robin->narrative_text) ? %{$robin->narrative_text} : ();
 
 my @choice_term = sort (grep (length($choice{$_}) > 0, keys %choice));
 my @narrative_term = sort (grep (length($narrative{$_}) > 0, keys %narrative));
@@ -65,10 +65,10 @@ for my $sym (@sym) {
     $default =~ s/_/ /g;
     $default =~ s/^([a-z])/@{[uc($1)]}/;
     my ($narrative, $choice);
-    if (!defined ($narrative = $robin->narrative_text->{$sym})) {
+    if (!defined ($narrative = $narrative{$sym})) {
 	$narrative = "$default.\n\n";
     }
-    if (!defined ($choice = $robin->choice_text->{$sym})) {
+    if (!defined ($choice = $choice{$sym})) {
 	$choice = $owned_by_player{$sym} ? " $default" : "";
     } elsif ($trim_text && !$owned_by_player{$sym}) {
 	$choice = "";
