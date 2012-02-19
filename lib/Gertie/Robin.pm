@@ -365,9 +365,9 @@ sub player_choice {
 
 	push @item_callback,
 	[$meta_color . "(save the game)", sub { $self->save_game ($self->get_save_filename) }],
-	[$meta_color . "(load a previous game)", sub { $self->load_game ($self->get_save_filename);
-						       &$story_so_far();
-						       $choice = -1 }];
+	[$meta_color . "(restore the game)", sub { $self->load_game ($self->get_save_filename);
+						   &$story_so_far();
+						   $choice = -1 }];
 
 	# variables determining whether to print the menu
 	my $display_choices = 1;
