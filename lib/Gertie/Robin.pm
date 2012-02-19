@@ -24,6 +24,7 @@ sub new_robin {
 
 			       'choice_text' => undef,
 			       'narrative_text' => undef,
+			       'preamble_text' => "",
 
 			       'turns' => {},
 			       'max_rounds' => undef,
@@ -119,7 +120,7 @@ sub parse_text_line {
     } elsif (defined $self->current_text_symbol) {
 	$self->narrative_text->{$self->current_text_symbol} .= $line;
     } else {
-	carp "Discarding line $line" if $line =~ /\S/;
+	$self->{'preamble_text'} .= $line;
     }
 }
 
@@ -150,6 +151,7 @@ sub play {
     }
     $self->{'trace_fh'} = $trace_fh;
 
+    print $self->narrative_color, $self->preamble_text, $self->reset_color;
     my $n_agents = @{$self->gertie->agents};
 GAMELOOP:    
     for ($self->{'current_turn'} = 0;
@@ -384,7 +386,7 @@ sub player_choice {
 
 sub story_so_far {
     my ($self) = @_;
-    my @out;
+    my @out = ($self->preamble_text);
     my $narrative_text = $self->narrative_text;
     for my $sym (@{$self->seq}) {
 	if (defined($narrative_text) && defined($narrative_text->{$sym})) {
