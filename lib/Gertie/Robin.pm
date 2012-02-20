@@ -175,9 +175,8 @@ sub play {
 
     # Main loop
 GAMELOOP:    
-    for ($self->{'current_turn'} = 0;
-	 !defined($self->max_rounds) || $self->current_round() < $self->max_rounds;
-	 ++$self->{'current_turn'}) {
+    for ($self->current_turn(0);
+	 !defined($self->max_rounds) || $self->current_round() < $self->max_rounds; ) {
 
 	# Round Robin: each turn (terminal) is offered to one agent, visiting all agents cyclically
 	# One "round" = a visit to each of N agents, in order = N "turns"
@@ -202,6 +201,7 @@ GAMELOOP:
 	my @next_prob = map ($term_prob{$_}, @next_term);
 	unless (@next_term) {
 	    print $log_color, "No available move for $agent", $reset_nl if $self->verbose;
+	    $self->record_turn (undef);
 	    next GAMELOOP;
 	}
 
@@ -212,7 +212,6 @@ GAMELOOP:
 	    $next_term = $self->player_choice (@next_term);
 	    # hack: if player_choice returns undef, then rebuild menu
 	    if (!defined $next_term) {
-		--$self->{'current_turn'};
 		next GAMELOOP;
 	    }
 	} else {
@@ -261,16 +260,21 @@ sub current_round {
 
 sub record_turn {
     my ($self, $next_term) = @_;
-    my $agent = $self->gertie->term_owner_by_name->{$next_term};
-    my $trace_fh = $self->trace_fh;
-    ++$self->turns->{$agent};
-    push @{$self->seq}, $next_term;
-    push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
-    push @{$self->seq_turn}, $self->current_turn;
-    if (defined $trace_fh) { print $trace_fh "PUSH $next_term\n" }
+    if (defined $next_term) {
+	my $agent = $self->gertie->term_owner_by_name->{$next_term};
+	my $trace_fh = $self->trace_fh;
+	++$self->turns->{$agent};
+	push @{$self->seq}, $next_term;
+	push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
+	push @{$self->seq_turn}, $self->current_turn;
+	if (defined $trace_fh) { print $trace_fh "PUSH $next_term\n" }
 
-    # update Inside matrix
-    $self->inside->push_sym ($next_term);
+	# update Inside matrix
+	$self->inside->push_sym ($next_term);
+    }
+
+    # count
+    ++$self->{'current_turn'};
 }
 
 sub undo_turn {
