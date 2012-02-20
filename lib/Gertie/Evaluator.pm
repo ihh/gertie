@@ -13,7 +13,7 @@ use Symbol qw(gensym);
 # methods
 sub evaluate {
     local $_;
-    my ($expr, $val, @result, %a);
+    my ($expr, $val, @result, %attr);
   SHIFT:
     goto NO_SHIFT unless @_;
     $_ = shift (@_);
@@ -21,7 +21,7 @@ sub evaluate {
   MATCH:
     goto NO_MATCH unless /\%\{(.*?)\}\%/;
     $expr = $1;
-    $expr =~ s/\$(\w+)/\$a\{'$1'\}/g;
+    $expr =~ s/\$\$(\w+)/\$attr\{'$1'\}/g;
     $val = eval($expr);
     $val = "" unless defined $val;
 #    warn "$expr evaluated to $val";
