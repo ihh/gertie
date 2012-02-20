@@ -1,6 +1,6 @@
 The Story of Goldilocks
 =======================
-%{$$someone_has="Someone's"}%
+%{$$someone_has="Someone's"; ""}%
 >actually_it_was_dad@c 
 Actually, you're right; it was Dad who made the porridge, in the Bear House.
 Some mornings he even cooked eggs and bacon. But not this time...

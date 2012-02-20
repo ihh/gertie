@@ -299,10 +299,15 @@ sub reset {
 
 sub load_game {
     my ($self, $filename) = @_;
-    unless (-e $filename) { print $self->meta_color, "Oops - I can't find a saved game file called '$filename'. Are you sure you spelled it right?", $self->reset_nl; return }
+    unless (-e $filename)
+    { print $self->meta_color,
+      "Oops - I can't find a saved game file called '$filename'. Are you sure you spelled it right?",
+      $self->reset_nl; return }
     local *FILE;
     local $_;
-    unless (open FILE, "<$filename") { print $self->meta_color, "Oops - I wasn't able to load the game from file '$filename': $!", $self->reset_nl; return }
+    unless (open FILE, "<$filename")
+    { print $self->meta_color,
+      "Oops - I wasn't able to load the game from file '$filename': $!", $self->reset_nl; return }
     $self->reset;
     while (<FILE>) {
 	my ($turn, $term) = split;
@@ -318,7 +323,9 @@ sub load_game {
 sub save_game {
     my ($self, $filename) = @_;
     if (-e $filename) {
-	print $self->meta_color, "There's already a file called '$filename'. Are you sure you want to overwrite it? Please type 'yes' or 'no':", $self->reset_nl;
+	print $self->meta_color,
+	"There's already a file called '$filename'. Are you sure you want to overwrite it? Please type 'yes' or 'no':",
+	$self->reset_nl;
 	my $yes_no;
 	while (1) {
 	    $yes_no = <>;
@@ -327,19 +334,26 @@ sub save_game {
 	}
 	unless ($yes_no =~ /^\s*y/i) {
 	    if ($yes_no =~ /^\s*n/i) {
-		print $self->meta_color, "OK. If you still want to save you'll need to choose the 'save game' option again, and use a different filename.", $self->reset_nl;
+		print $self->meta_color,
+		"OK. If you still want to save you'll need to choose the 'save game' option again, ",
+		"but use a different filename.", $self->reset_nl;
 	    } else {
-		print $self->meta_color, "I didn't really understand your answer, so I'm not going to over-write the existing file.\nIf you still want to save you'll need to pick that option again, and use a different filename.", $self->reset_nl;
+		print $self->meta_color,
+		"I didn't really understand your answer, so I'm not going to over-write the existing file.",
+		$self->reset_nl;
 	    }
 	    return;
 	}
     }
     local *FILE;
-    unless (open FILE, ">$filename") { print $self->meta_color, "Oops - I wasn't able to save the game to the file '$filename': $!", $self->reset_nl; return }
+    unless (open FILE, ">$filename")
+    { print $self->meta_color, "Oops - I wasn't able to save the game to the file '$filename': $!", $self->reset_nl;
+      return }
     for (my $n = 0; $n < @{$self->seq}; ++$n) {
 	print FILE $self->seq_turn->[$n], " ", $self->seq->[$n], "\n";
     }
-    unless (close FILE) { print $self->meta_color, "Oops - I couldn't save the game to file '$filename': $!", $self->reset_nl }
+    unless (close FILE)
+    { print $self->meta_color, "Oops - I couldn't save the game to file '$filename': $!", $self->reset_nl }
     print $self->meta_color, "OK, game saved to file '$filename'.", $self->reset_nl;
 }
 
@@ -347,7 +361,8 @@ sub get_save_filename {
     my ($self) = @_;
     print
 	$self->meta_color,
-	"Please enter a filename (or just hit RETURN to use the default filename, '", $self->default_save_filename, "')",
+	"Please enter a filename (or just hit RETURN to use the default filename, '",
+	$self->default_save_filename, "')",
 	$self->reset_nl;
     my $filename = <>;
     chomp $filename;
@@ -406,8 +421,9 @@ sub player_choice {
 	}
 
 	push @item_callback,
-	[$meta_color . "(save the game)", sub { $self->save_game ($self->get_save_filename);
-						print "\n", $narrative_color, $self->story_excerpt, $self->reset_color }],
+	[$meta_color . "(save the game)",
+	 sub { $self->save_game ($self->get_save_filename);
+	       print "\n", $narrative_color, $self->story_excerpt, $self->reset_color }],
 	[$meta_color . "(restore the game)", sub { $self->load_game ($self->get_save_filename); $choice = -1 }];
 
 	# variables determining whether to print the menu
