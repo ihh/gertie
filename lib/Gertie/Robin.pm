@@ -167,7 +167,7 @@ sub play {
 
     # load state of game (i.e. terminal sequence), if applicable
     if (defined $self->initial_restore_filename) {
-	$self->load_game ($self->initial_restore_filename);
+	$self->load_and_print_game ($self->initial_restore_filename);
     } else {
 	# print preamble
 	print $self->narrative_color, $self->story_excerpt, $self->reset_color;
@@ -302,12 +302,12 @@ sub load_game {
     unless (-e $filename)
     { print $self->meta_color,
       "Oops - I can't find a saved game file called '$filename'. Are you sure you spelled it right?",
-      $self->reset_nl; return }
+      $self->reset_nl; return 0 }
     local *FILE;
     local $_;
     unless (open FILE, "<$filename")
     { print $self->meta_color,
-      "Oops - I wasn't able to load the game from file '$filename': $!", $self->reset_nl; return }
+      "Oops - I wasn't able to load the game from file '$filename': $!", $self->reset_nl; return 0 }
     $self->reset;
     while (<FILE>) {
 	my ($turn, $term) = split;
@@ -316,8 +316,17 @@ sub load_game {
     }
     close FILE;
     ++$self->{'current_turn'};
-    print $self->meta_color, "Game restored from file '$filename'.", $self->reset_nl;
-    $self->print_story_so_far;
+    return 1;
+}
+
+sub load_and_print_game {
+    my ($self, $filename) = @_;
+    my $ok = $self->load_game ($filename);
+    if ($ok) {
+	print $self->meta_color, "Game restored from file '$filename'.", $self->reset_nl;
+	$self->print_story_so_far;
+    }
+    return $ok;
 }
 
 sub save_game {
@@ -342,19 +351,20 @@ sub save_game {
 		"I didn't really understand your answer, so I'm not going to over-write the existing file.",
 		$self->reset_nl;
 	    }
-	    return;
+	    return 0;
 	}
     }
     local *FILE;
     unless (open FILE, ">$filename")
     { print $self->meta_color, "Oops - I wasn't able to save the game to the file '$filename': $!", $self->reset_nl;
-      return }
+      return 0 }
     for (my $n = 0; $n < @{$self->seq}; ++$n) {
 	print FILE $self->seq_turn->[$n], " ", $self->seq->[$n], "\n";
     }
     unless (close FILE)
     { print $self->meta_color, "Oops - I couldn't save the game to file '$filename': $!", $self->reset_nl }
     print $self->meta_color, "OK, game saved to file '$filename'.", $self->reset_nl;
+    return 1;
 }
 
 sub get_save_filename {
@@ -422,9 +432,10 @@ sub player_choice {
 
 	push @item_callback,
 	[$meta_color . "(save the game)",
-	 sub { $self->save_game ($self->get_save_filename);
-	       print "\n", $narrative_color, $self->story_excerpt, $self->reset_color }],
-	[$meta_color . "(restore the game)", sub { $self->load_game ($self->get_save_filename); $choice = -1 }];
+	 sub { if ($self->save_game ($self->get_save_filename))
+	       { print "\n", $narrative_color, $self->story_excerpt, $self->reset_color } }],
+	[$meta_color . "(restore the game)", sub { $self->load_and_print_game ($self->get_save_filename);
+						   $choice = -1 }];
 
 	# variables determining whether to print the menu
 	my $display_choices = 1;
