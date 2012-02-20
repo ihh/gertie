@@ -140,8 +140,7 @@ sub parse_text_line {
 sub play {
     my ($self) = @_;
 
-    $self->reset();
-
+    # initialize ANSI terminal color
     if ($self->use_color) { $self->use_cool_color_scheme } else { $self->use_boring_color_scheme }
     my $log_color = $self->log_color;
     my $reset_nl = $self->reset_nl;
@@ -149,10 +148,7 @@ sub play {
     my @end_log = ($log_color, "--- END DEBUG LOG", $reset_nl);
     print @begin_log if $self->verbose;
 
-    $self->rand_seed (time) unless defined $self->rand_seed;
-    srand ($self->rand_seed);
-    print $log_color, "Random seed: ", $self->rand_seed, $reset_nl if $self->verbose;
-
+    # open trace file
     my $trace_fh;
     if (defined $self->trace_filename) {
 	$trace_fh = FileHandle->new (">".$self->trace_filename)
@@ -161,15 +157,28 @@ sub play {
     }
     $self->{'trace_fh'} = $trace_fh;
 
+    # initialize random seed
+    $self->rand_seed (time) unless defined $self->rand_seed;
+    srand ($self->rand_seed);
+    print $log_color, "Random seed: ", $self->rand_seed, $reset_nl if $self->verbose;
+
+    # reset state of game (i.e. terminal sequence)
+    $self->reset();
+
+    # load state of game (i.e. terminal sequence), if applicable
     $self->load_game ($self->initial_restore_filename) if defined $self->initial_restore_filename;
 
+    # print most recent paragraph (preamble if reset, otherwise narrative text of most recent terminal)
     print $self->narrative_color, $self->story_excerpt, $self->reset_color;
-    my $n_agents = @{$self->gertie->agents};
+
+    # Main loop
 GAMELOOP:    
     for ($self->{'current_turn'} = 0;
 	 !defined($self->max_rounds) || $self->current_round() < $self->max_rounds;
 	 ++$self->{'current_turn'}) {
 
+	# Round Robin: each turn (terminal) is offered to one agent, visiting all agents cyclically
+	# One "round" = a visit to each of N agents, in order = N "turns"
 	my $turn = $self->current_turn;
 	my $round = $self->current_round;
 	my $agent = $self->current_agent;
@@ -221,8 +230,10 @@ GAMELOOP:
 	}
     }
 
+    # log ending
     print @end_log if $self->verbose;
 
+    # close trace
     if (defined $trace_fh) {
 	$trace_fh->close or confess "Couldn't close ", $self->trace_filename, ": $!";
 	delete $self->{'trace_fh'};
