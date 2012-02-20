@@ -24,7 +24,7 @@ sub evaluate {
     $expr =~ s/\$(\w+)/\$a\{'$1'\}/g;
     $val = eval($expr);
     $val = "" unless defined $val;
-    warn "$expr evaluated to $val";
+#    warn "$expr evaluated to $val";
     s/\%\{(.*?)\}\%/$val/;
     goto MATCH;
   NO_MATCH:
