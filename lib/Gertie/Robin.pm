@@ -136,7 +136,9 @@ sub parse_text_line {
     }
 }
 
-# play method
+# Play method (terminal)
+# Core steps:
+#  $self->reset
 sub play {
     my ($self) = @_;
 
@@ -175,8 +177,7 @@ sub play {
 
     # Main loop
 GAMELOOP:    
-    for ($self->current_turn(0);
-	 !defined($self->max_rounds) || $self->current_round() < $self->max_rounds; ) {
+    while (1) {
 
 	# Round Robin: each turn (terminal) is offered to one agent, visiting all agents cyclically
 	# One "round" = a visit to each of N agents, in order = N "turns"
@@ -195,7 +196,7 @@ GAMELOOP:
 	}
 
 	# can we continue/play this agent?
-	last GAMELOOP unless $self->inside->continue_prob > 0;
+	last GAMELOOP unless $self->play_continues;
 	my %term_prob = $self->inside->next_term_prob ($agent);
 	my @next_term = sort { $term_prob{$b} <=> $term_prob{$a} } keys %term_prob;
 	my @next_prob = map ($term_prob{$_}, @next_term);
@@ -210,7 +211,7 @@ GAMELOOP:
 	print @end_log if $self->verbose;
 	if ($agent eq $self->gertie->player_agent) {
 	    $next_term = $self->player_choice (@next_term);
-	    # hack: if player_choice returns undef, then rebuild menu
+	    # hack: if next_term returns undef, then redisplay menu withour recording a turn
 	    if (!defined $next_term) {
 		next GAMELOOP;
 	    }
@@ -239,6 +240,13 @@ GAMELOOP:
 	$trace_fh->close or confess "Couldn't close ", $self->trace_filename, ": $!";
 	delete $self->{'trace_fh'};
     }
+}
+
+sub play_continues {
+    my ($self) = @_;
+    my $more_rounds = !defined($self->max_rounds) || $self->current_round() < $self->max_rounds;
+    my $more_probability = $self->inside->continue_prob > 0;
+    return $more_rounds && $more_probability;
 }
 
 sub current_agent {
@@ -299,6 +307,7 @@ sub reset {
     $self->inside ($self->gertie->prefix_Inside ([], @{$self->inside_args}));  # initialize empty Inside matrix
     $self->inside->verbose ($self->verbose);  # make the Inside matrix as verbose as we are, for log tidiness
     $self->{'turns'} = { map (($_ => 0), @{$self->gertie->agents}) };
+    $self->current_turn(0);
 }
 
 sub load_game {
@@ -385,6 +394,7 @@ sub get_save_filename {
 
 sub player_choice {
     my ($self, @options) = @_;
+# Commented-out line chooses automatically if there is only one choice
 #    return $options[0] if @options == 1;
 
     my $choice_text = $self->choice_text;
