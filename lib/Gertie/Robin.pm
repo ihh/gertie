@@ -166,10 +166,12 @@ sub play {
     $self->reset();
 
     # load state of game (i.e. terminal sequence), if applicable
-    $self->load_game ($self->initial_restore_filename) if defined $self->initial_restore_filename;
-
-    # print most recent paragraph (preamble if reset, otherwise narrative text of most recent terminal)
-    print $self->narrative_color, $self->story_excerpt, $self->reset_color;
+    if (defined $self->initial_restore_filename) {
+	$self->load_game ($self->initial_restore_filename);
+    } else {
+	# print preamble
+	print $self->narrative_color, $self->story_excerpt, $self->reset_color;
+    }
 
     # Main loop
 GAMELOOP:    
@@ -359,7 +361,6 @@ sub player_choice {
 #    return $options[0] if @options == 1;
 
     my $choice_text = $self->choice_text;
-    my $narrative_text = $self->narrative_text;
     my $input_color = $self->input_color;
     my $choice_selector_color = $self->choice_selector_color;
     my $narrative_color = $self->narrative_color;
