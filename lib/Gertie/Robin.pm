@@ -402,14 +402,6 @@ sub player_choice {
 	my @item_callback = map ([$choice_color . $_, sub { $choice = shift() + $min; print "\n" }],
 				 @menu);
 
-	if ($self->player_turns > 0) {
-	    push @item_callback,
-	    [$meta_color . "(review the story so far)", sub { $self->print_story_so_far } ],
-	    [$meta_color . "(undo my last choice)", sub { $self->undo_turn ($self->gertie->player_agent);
-							  $self->print_story_so_far;
-							  $choice = -1 } ];
-	}
-
 	if ($max < $#options) {
 	    push @item_callback,
 	    [$meta_color . "(more choices)", sub { ++$page }];
@@ -418,6 +410,14 @@ sub player_choice {
 	if ($page > 0) {
 	    push @item_callback,
 	    [$meta_color . "(previous choices)", sub { --$page }];
+	}
+
+	if ($self->player_turns > 0) {
+	    push @item_callback,
+	    [$meta_color . "(review the story so far)", sub { $self->print_story_so_far } ],
+	    [$meta_color . "(undo my last choice)", sub { $self->undo_turn ($self->gertie->player_agent);
+							  $self->print_story_so_far;
+							  $choice = -1 } ];
 	}
 
 	push @item_callback,
