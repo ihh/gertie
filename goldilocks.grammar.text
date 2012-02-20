@@ -1,5 +1,6 @@
 The Story of Goldilocks
 =======================
+%{$$someone_has="Someone's"}%
 >actually_it_was_dad@c 
 Actually, you're right; it was Dad who made the porridge, in the Bear House.
 Some mornings he even cooked eggs and bacon. But not this time...
@@ -16,36 +17,37 @@ She saw the porridge through the bears' window, and decided to go inside.
 
 >bears_beds@c 
 Then the bears went into the bedrooms.
-Daddy Bear said, "Someone's been sleeping in my bed."
-Mummy Bear said, "Someone's been sleeping in MY bed."
-Baby Bear said, "Someone's been sleeping in my bed, and there she is now!"
+Daddy Bear said, "$$someone_has been sleeping in my bed."
+Mummy Bear said, "$$someone_has been sleeping in MY bed."
+Baby Bear said, "$$someone_has been sleeping in my bed, and there she is now!"
 
 >bears_bowls@c 
 Then the bears noticed the smashed bowls on the floor.
-Daddy Bear said, "Someone's been smashing our bowls."
-Mummy Bear said, "Someone's been spitting on the floor."
-Baby Bear said, "Someone's been throwing porridge all over the place!"
+Daddy Bear said, "$$someone_has been smashing our bowls."
+Mummy Bear said, "$$someone_has been spitting on the floor."
+Baby Bear said, "$$someone_has been throwing porridge all over the place!"
 
 >bears_chairs@c 
 Then the bears went over to the chairs.
-Daddy Bear said, "Someone's been sitting in my chair."
-Mummy Bear said, "Someone's been sitting in MY chair."
-Baby Bear said, "Someone's been sitting in my chair, and they broke it in pieces!"
+Daddy Bear said, "$$someone_has been sitting in my chair."
+Mummy Bear said, "$$someone_has been sitting in MY chair."
+Baby Bear said, "$$someone_has been sitting in my chair, and they broke it in pieces!"
 
 >bears_graffiti@c 
 Then the bears saw the writing on the wall by the stairs.
-Daddy Bear said, "Someone's been using my pen."
-Mummy Bear said, "Someone's been writing on my wall."
-Baby Bear said, "Someone's been in my house, and her name is PUNKILOCKS!"
+Daddy Bear said, "$$someone_has been using my pen."
+Mummy Bear said, "$$someone_has been writing on my wall."
+Baby Bear said, "$$someone_has been in my house, and her name is PUNKILOCKS!"
+%{$$someone_has = "Punkilocks has"; ""}%\
 
 >bears_home@c 
 A little while later, the three bears came home.
 
 >bears_porridge@c 
 The three bears went into the kitchen.
-Daddy Bear said, "Someone's been eating my porridge."
-Mummy Bear said, "Someone's been eating MY porridge."
-Baby Bear said, "Someone's been eating my porridge, and they ate it all up!"
+Daddy Bear said, "$$someone_has been eating my porridge."
+Mummy Bear said, "$$someone_has been eating MY porridge."
+Baby Bear said, "$$someone_has been eating my porridge, and they ate it all up!"
 
 >bears_window@c 
 A little while later, the three bears came home
@@ -68,21 +70,21 @@ Er, well... yes, they all slept in separate beds.
 Every morning, Mummy Bear made them all porridge for breakfast.
 
 >girl_beds@p She goes to bed
-Next, %{$$hero}% felt sleepy, so she climbed upstairs to the bedrooms.
+$$hero felt sleepy, so she went into the upstairs bedrooms.
 First, she tried Mummy Bear's bed, but it was too soft.
 Next, she tried Daddy Bear's bed, but it was too hard.
 Next, she tried Baby Bear's bed, and it was just right.
 So she lay down in Baby Bear's bed; and soon, she fell asleep.
 
 >girl_chairs@p She sits down
-After eating, %{$$hero}% felt like sitting down.
+After eating, $$hero felt like sitting down.
 First, she tried Mummy Bear's rocking chair, but it rocked too slow.
 Next, she tried Daddy Bear's rocking chair, but it rocked too fast.
 Next, she tried Baby Bear's rocking chair, and it was just right.
 So she rocked and rocked, until the little chair broke!
 
 >goldilocks@p Goldilocks
-"Goldilocks!" %{ $$hero = "Goldilocks" }%
+"Goldilocks!" %{ $$hero = "Goldilocks"; "" }%
 
 >goldilocks_ending@c 
 And the three bears never saw Goldilocks ever again.
@@ -111,7 +113,7 @@ They all lived in a house in the woods.
 One morning, the porridge was too hot, so they all went for a walk until it cooled down.
 
 >punkilocks@p Punkilocks
-"Punkilocks!" %{ $$hero = "Punkilocks" }%
+"Punkilocks!" %{ $$hero = "Punkilocks"; "" }%
 
 >punkilocks_bowls@p She smashes the bowls
 In disgust, Punkilocks smashed the bowls on the floor.
