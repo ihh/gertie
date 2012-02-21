@@ -136,11 +136,14 @@ sub parse_text_line {
     }
 }
 
+# Play the game over an ANSI terminal
 sub play {
     my ($self) = @_;
 
     # initialize ANSI terminal color
     if ($self->use_color) { $self->use_cool_color_scheme } else { $self->use_boring_color_scheme }
+
+    # initialize debugging log
     my $log_color = $self->log_color;
     my $reset_nl = $self->reset_nl;
     my @begin_log = ($log_color, "--- BEGIN DEBUG LOG", $reset_nl);
@@ -169,7 +172,7 @@ sub play {
 	$self->load_and_print_game ($self->initial_restore_filename);
     } else {
 	# print preamble
-	print $self->narrative_color, $self->story_excerpt, $self->reset_color;
+	$self->print_latest_episode;
     }
 
     # Main loop
@@ -182,7 +185,7 @@ GAMELOOP:
 	my $round = $self->current_round;
 	my $agent = $self->current_agent;
 
-	# status/log messages
+	# status/log messages, for debugging
 	if ($self->verbose) {
 	    print $log_color, "Turn: ", $turn, $reset_nl;
 	    print $log_color, "Round: ", $round + 1, $reset_nl;
@@ -192,35 +195,25 @@ GAMELOOP:
 	    print $log_color, "Inside matrix:\n", $self->inside->to_string, $reset_nl if $self->verbose > 9;
 	}
 
-	# can we continue/play this agent?
+	# can we continue?
 	last GAMELOOP unless $self->play_continues;
-	my %term_prob = $self->inside->next_term_prob ($agent);
-	my @next_term = sort { $term_prob{$b} <=> $term_prob{$a} } keys %term_prob;
-	my @next_prob = map ($term_prob{$_}, @next_term);
-	unless (@next_term) {
-	    print $log_color, "No available move for $agent", $reset_nl if $self->verbose;
-	    $self->record_turn (undef);
-	    next GAMELOOP;
-	}
 
-	# get next terminal from appropriate agent
-	my $next_term;
+	# log
 	print @end_log if $self->verbose;
+
+	# get next terminal
+	my $next_term;
 	if ($agent eq $self->gertie->player_agent) {
-	    $next_term = $self->player_choice (@next_term);
-	    # hack: if next_term returns undef, then redisplay menu without recording a turn
-	    if (!defined $next_term) {
-		next GAMELOOP;
-	    }
+	    $next_term = $self->player_choice;
 	} else {
-	    $next_term = Gertie::sample (\@next_prob, \@next_term);
+	    $next_term = $self->random_choice;
 	}
 
 	# record the turn
 	$self->record_turn ($next_term);
 
 	# print narrative text
-	print $self->narrative_color, $self->story_excerpt, $self->reset_color;
+	$self->print_latest_episode if defined $next_term;
 
 	# log
 	if ($self->verbose) {
@@ -229,7 +222,7 @@ GAMELOOP:
 	}
     }
 
-    # log ending
+    # end log
     print @end_log if $self->verbose;
 
     # close trace
@@ -239,6 +232,7 @@ GAMELOOP:
     }
 }
 
+# Test to see if more moves are possible
 sub play_continues {
     my ($self) = @_;
     my $more_rounds = !defined($self->max_rounds) || $self->current_round() < $self->max_rounds;
@@ -246,6 +240,22 @@ sub play_continues {
     return $more_rounds && $more_probability;
 }
 
+# The dumbest AI for playing a move. Selects at random from the posterior
+sub random_choice {
+    my ($self) = @_;
+    my $next_term;
+    my $agent = $self->current_agent;
+
+    my %term_prob = $self->inside->next_term_prob ($agent);
+    my @next_term = keys %term_prob;
+    if (@next_term) {
+	my @next_prob = map ($term_prob{$_}, @next_term);
+	$next_term = Gertie::sample (\@next_prob, \@next_term);
+    }
+    return $next_term;
+}
+
+# Accessor for current agent
 sub current_agent {
     my ($self) = @_;
     my $turn = $self->current_turn;
@@ -255,6 +265,7 @@ sub current_agent {
     return $agent;
 }
 
+# Accessor for current round number
 sub current_round {
     my ($self) = @_;
     my $turn = $self->current_turn;
@@ -263,6 +274,13 @@ sub current_round {
     return $round;
 }
 
+# Accessor to count the number of turns the player has had
+sub player_turns {
+    my ($self) = @_;
+    return $self->turns->{$self->gertie->player_agent};
+}
+
+# Method to advance the turn counter and (optionally) record a turn
 sub record_turn {
     my ($self, $next_term) = @_;
     if (defined $next_term) {
@@ -282,6 +300,7 @@ sub record_turn {
     ++$self->{'current_turn'};
 }
 
+# Method to undo a turn, winding back the turn counter
 sub undo_turn {
     my ($self, $agent) = @_;
     my $trace_fh = $self->trace_fh;
@@ -296,6 +315,7 @@ sub undo_turn {
     }
 }
 
+# Reset
 sub reset {
     my ($self) = @_;
     $self->seq ([]);
@@ -307,6 +327,7 @@ sub reset {
     $self->current_turn(0);
 }
 
+# Load game
 sub load_game {
     my ($self, $filename, $err_handler) = @_;
     $err_handler = sub { print $self->meta_color, @_, $self->reset_nl } unless defined $err_handler;
@@ -327,16 +348,18 @@ sub load_game {
     return 1;
 }
 
+# Terminal wrapper for load_game
 sub load_and_print_game {
     my ($self, $filename) = @_;
     my $ok = $self->load_game ($filename);
     if ($ok) {
 	print $self->meta_color, "Game restored from file '$filename'.", $self->reset_nl;
-	$self->print_story_so_far;
+	$self->print_latest_episode;
     }
     return $ok;
 }
 
+# Save game
 sub save_game {
     my ($self, $filename, $err_handler) = @_;
     $err_handler = sub { print $self->meta_color, @_, $self->reset_nl } unless defined $err_handler;
@@ -375,6 +398,7 @@ sub save_game {
     return 1;
 }
 
+# Simple dialog handler for savefiles
 sub get_save_filename {
     my ($self) = @_;
     print
@@ -389,8 +413,16 @@ sub get_save_filename {
     return $filename;
 }
 
+# Present a menu on a ANSI terminal; read choice from stdin
 sub player_choice {
-    my ($self, @options) = @_;
+    my ($self) = @_;
+
+REDISPLAY:
+    my %term_prob = $self->inside->next_term_prob ($self->current_agent);
+    my @options = sort { $term_prob{$b} <=> $term_prob{$a} } keys %term_prob;
+
+    return undef unless @options;
+
 # Commented-out line chooses automatically if there is only one choice
 #    return $options[0] if @options == 1;
 
@@ -435,16 +467,15 @@ sub player_choice {
 	    push @item_callback,
 	    [$meta_color . "(review the story so far)", sub { $self->print_story_so_far } ],
 	    [$meta_color . "(undo my last choice)", sub { $self->undo_turn ($self->gertie->player_agent);
-							  $self->print_story_so_far;
-							  $choice = -1 } ];
+							  $self->print_latest_episode;
+							  goto REDISPLAY } ];
 	}
 
 	push @item_callback,
 	[$meta_color . "(save the game)",
-	 sub { if ($self->save_game ($self->get_save_filename))
-	       { print "\n", $narrative_color, $self->story_excerpt, $self->reset_color } }],
+	 sub { if ($self->save_game ($self->get_save_filename)) { $self->print_latest_episode } }],
 	[$meta_color . "(restore the game)", sub { $self->load_and_print_game ($self->get_save_filename);
-						   $choice = -1 }];
+						   goto REDISPLAY }];
 
 	# variables determining whether to print the menu
 	my $display_choices = 1;
@@ -525,19 +556,28 @@ sub player_choice {
 	# act on user choice
 	&{$item_callback[$n]->[1]} ($n);
     }
-    return $choice < 0 ? undef : $options[$choice];
+    return $options[$choice];
 }
 
+# Renderers/output adapters
 sub print_story_so_far {
     my ($self) = @_;
     print "\n", $self->narrative_color, $self->story_excerpt (0, $self->story_episodes - 1), $self->reset_color;
 }
 
+sub print_latest_episode {
+    my ($self) = @_;
+    print $self->narrative_color, $self->story_excerpt, $self->reset_color;
+}
+
+# An episode is the preamble text, or some terminal narrative text.
+# This method counts the number of episodes.
 sub story_episodes {
     my ($self) = @_;
     return @{$self->seq} + 1;  # the extra 1 is the preamble
 }
 
+# This method renders a slice of the episode list
 sub story_excerpt {
     my ($self, $first_turn, $last_turn) = @_;
     $first_turn = $self->story_episodes - 1 unless defined $first_turn;
@@ -554,9 +594,4 @@ sub story_excerpt {
     }
     @out = Gertie::Evaluator::evaluate (@out);
     return @out[$first_turn..$last_turn];
-}
-
-sub player_turns {
-    my ($self) = @_;
-    return $self->turns->{$self->gertie->player_agent};
 }
