@@ -136,9 +136,6 @@ sub parse_text_line {
     }
 }
 
-# Play method (terminal)
-# Core steps:
-#  $self->reset
 sub play {
     my ($self) = @_;
 
