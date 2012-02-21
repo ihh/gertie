@@ -56,6 +56,7 @@ my $robin = Gertie::Robin->new_from_file
 
 # The -html option just tests the HTML rendering
 # Commented-out code shows how this would be used for CGI play
+# You would also need to pass appropriate JavaScript functions into render_dynamic_html
 if ($render_html) {
     $robin->initialize_game_for_player;
 #    if ($CGI_COMMAND_PARAMETER = "move" && $CGI_TURN_PARAMETER == $robin->current_turn) {
