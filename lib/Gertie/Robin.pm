@@ -356,10 +356,17 @@ sub reset {
     $self->current_turn(0);
 }
 
+# Default 'error' handler for save/restore dialogs
+sub terminal_error_handler {
+    my ($self) = @_;
+    return sub { print $self->meta_color, @_, $self->reset_color_newline };
+}
+
 # Load game
 sub load_game {
     my ($self, $filename, $err_handler) = @_;
-    $err_handler = sub { print $self->meta_color, @_, $self->reset_color_newline } unless defined $err_handler;
+    $filename = $self->default_save_filename unless defined $filename;
+    $err_handler = $self->terminal_error_handler unless defined $err_handler;
     unless (-e $filename)
     { &$err_handler ("Oops - I can't find a game called '$filename'. Are you sure you spelled it right?"); return 0 }
     local *FILE;
@@ -388,31 +395,34 @@ sub load_and_print_game {
     return $ok;
 }
 
+# Simple yes/no dialog
+sub yes_or_no {
+    my ($self, $err_handler) = @_;
+    $err_handler = $self->terminal_error_handler unless defined $err_handler;
+    &$err_handler ("Please type 'yes' or 'no':");
+    my $yes_no;
+    while (1) {
+	$yes_no = <>;
+	last if $yes_no =~ /\S/;
+	&$err_handler ("Please type 'yes' or 'no'.");
+    }
+    if ($yes_no =~ /^\s*y/i) {
+	return 1;
+    }
+    unless ($yes_no =~ /^\s*n/i) {
+	&$err_handler ("I didn't really understand your answer, so I'm taking that as a 'no'.");
+    }
+    return 0;
+}
+
 # Save game
 sub save_game {
     my ($self, $filename, $err_handler) = @_;
-    $err_handler = sub { print $self->meta_color, @_, $self->reset_color_newline } unless defined $err_handler;
+    $filename = $self->default_save_filename unless defined $filename;
+    $err_handler = $self->terminal_error_handler unless defined $err_handler;
     if (-e $filename) {
-	&$err_handler
-	    ("There's already a file called '$filename'. Are you sure you want to overwrite it? ",
-	     "Please type 'yes' or 'no':");
-	my $yes_no;
-	while (1) {
-	    $yes_no = <>;
-	    last if $yes_no =~ /\S/;
-	    &$err_handler ("Please type 'yes' or 'no'.");
-	}
-	unless ($yes_no =~ /^\s*y/i) {
-	    if ($yes_no =~ /^\s*n/i) {
-		&$err_handler
-		    ("OK. If you still want to save you'll need to choose the 'save game' option again, ",
-		     "but use a different filename.");
-	    } else {
-		&$err_handler
-		    ("I didn't really understand your answer, so I'm not going to over-write the existing file."),
-	    }
-	    return 0;
-	}
+	&$err_handler ("There's already a file called '$filename'. Are you sure you want to overwrite it?");
+	return 0 unless $self->yes_or_no ($err_handler);
     }
     local *FILE;
     unless (open FILE, ">$filename")
@@ -427,7 +437,7 @@ sub save_game {
     return 1;
 }
 
-# Simple dialog handler for savefiles
+# Simple terminal-based dialog handler for savefiles
 sub get_save_filename {
     my ($self) = @_;
     print
