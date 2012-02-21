@@ -36,6 +36,7 @@ sub new_robin {
 			       'options_per_page' => 3,
 
 			       'trace_filename' => undef,
+			       'trace_fh' => undef,
 			       'text_filename' => undef,
 			       'default_save_filename' => 'GAME',
 			       'initial_restore_filename' => undef,
@@ -168,15 +169,9 @@ sub play {
     srand ($self->rand_seed);
     print $log_color, "Random seed: ", $self->rand_seed, $reset_color_newline if $self->verbose;
 
-    # load state of game (i.e. terminal sequence), if applicable
-    if (defined $self->initial_restore_filename) {
-	$self->load_and_print_game ($self->initial_restore_filename);
-    } else {
-	# reset state of game (i.e. terminal sequence)
-	$self->reset();
-	# print preamble
-	$self->print_latest_episode;
-    }
+    # load state of game (i.e. terminal sequence), if applicable, or reset it
+    $self->initialize_game;
+    $self->print_latest_episode;
 
     # Main loop
 GAMELOOP:    
@@ -250,7 +245,17 @@ sub play_continues {
 # Test to see if it's the player's move
 sub is_players_turn {
     my ($self) = @_;
-    return $self->current_agent eq $self->gertie->player_agent;
+    return 0 unless $self->current_agent eq $self->gertie->player_agent;
+    my ($tp_hash, $t_list) = $self->next_term_prob;
+    return @$t_list > 0;
+}
+
+# Wrapper to advance to the next player move
+sub advance_to_next_player_turn {
+    my ($self) = @_;
+    while (!$self->is_players_turn) {
+	$self->record_turn ($self->agent_choice);
+    }
 }
 
 # Wrapper to record the player's move then advance to the next player move
@@ -262,9 +267,7 @@ sub record_player_turn {
     } else {
 	confess "Can't skip player's turn" if $self->is_players_turn;
     }
-    while (!$self->is_players_turn) {
-	$self->record_turn ($self->agent_choice);
-    }
+    $self->advance_to_next_player_turn;
 }
 
 # The dumbest AI for playing a move. Selects at random from the posterior for the current agent's move
@@ -317,6 +320,7 @@ sub player_turns {
 # Method to advance the turn counter and (optionally) record a turn
 sub record_turn {
     my ($self, $next_term) = @_;
+    $self->flush_next_term_prob_cache;
     if (defined $next_term) {
 	my $agent = $self->gertie->term_owner_by_name->{$next_term};
 	my $trace_fh = $self->trace_fh;
@@ -337,6 +341,7 @@ sub record_turn {
 # Method to undo a turn, winding back the turn counter
 sub undo_turn {
     my ($self, $agent) = @_;
+    $self->flush_next_term_prob_cache;
     my $trace_fh = $self->trace_fh;
     while (@{$self->seq}) {
 	my $undone_term = pop @{$self->seq};
@@ -369,6 +374,7 @@ sub terminal_error_handler {
 # Load game
 sub load_game {
     my ($self, $filename, $err_handler) = @_;
+    $self->flush_next_term_prob_cache;
     $filename = $self->default_save_filename unless defined $filename;
     $err_handler = $self->terminal_error_handler unless defined $err_handler;
     unless (-e $filename)
@@ -384,17 +390,34 @@ sub load_game {
 	$self->record_turn ($term);
     }
     close FILE;
-    ++$self->{'current_turn'};
     return 1;
 }
 
+# load state of game (i.e. terminal sequence), if applicable, or reset it
+sub initialize_game {
+    my ($self) = @_;
+    if (defined $self->initial_restore_filename) {
+	$self->load_game ($self->initial_restore_filename);
+    } else {
+	# reset state of game (i.e. terminal sequence)
+	$self->reset();
+    }
+}
+
+# wrapper for initialize_game that advances to first player turn
+sub initialize_game_for_player {
+    my ($self) = @_;
+    $self->initialize_game;
+    $self->advance_to_next_player_turn;
+}
+
 # Terminal wrapper for load_game
-sub load_and_print_game {
-    my ($self, $filename) = @_;
-    my $ok = $self->load_game ($filename);
+sub load_game_and_confirm {
+    my ($self, $filename, $err_handler) = @_;
+    $err_handler = $self->terminal_error_handler unless defined $err_handler;
+    my $ok = $self->load_game ($filename, $err_handler);
     if ($ok) {
-	print $self->meta_color, "Game restored from file '$filename'.", $self->reset_color_newline;
-	$self->print_latest_episode;
+	&$err_handler ("Game restored from file '$filename'.");
     }
     return $ok;
 }
@@ -458,12 +481,26 @@ sub get_save_filename {
 
 # Probability distribution over next terminal
 # Returns a list of two references: the distribution (as a hashref), and the sorted key list (as an arrayref)
+# Caches the values between calls, as it is expensive to compute them
+# Methods that change the state of the game must call flush_next_term_prob_cache to empty this cache
+# (i.e. record_turn, undo_turn, load_game)
 sub next_term_prob {
     my ($self) = @_;
+    if (defined($self->{'term_prob_hashref'}) && defined($self->{'term_listref'})) {
+	return ($self->term_prob_hashref, $self->term_listref);
+    }
     my %term_prob_hash = $self->inside->next_term_prob ($self->current_agent);
     my @term_list = sort { $term_prob_hash{$b} <=> $term_prob_hash{$a}
 			   || $a cmp $b } keys %term_prob_hash;
+    $self->{'term_prob_hashref'} = \%term_prob_hash;
+    $self->{'term_listref'} = \@term_list;
     return (\%term_prob_hash, \@term_list);
+}
+
+sub flush_next_term_prob_cache {
+    my ($self) = @_;
+    delete $self->{'term_prob_hashref'} if exists $self->{'term_prob_hashref'};
+    delete $self->{'term_listref'} if exists $self->{'term_listref'};
 }
 
 # Present a menu on a ANSI terminal; read choice from stdin
@@ -474,12 +511,11 @@ REDISPLAY:
     my ($tp_hash, $t_list) = $self->next_term_prob;
     my @options = @$t_list;
 
-    return undef unless @options;
+    confess "Player cannot move at turn ", $self->current_turn unless @options;
 
 # Commented-out line chooses automatically if there is only one choice
 #    return $options[0] if @options == 1;
 
-    my $choice_text = $self->choice_text;
     my $input_color = $self->input_color;
     my $choice_selector_color = $self->choice_selector_color;
     my $narrative_color = $self->narrative_color;
@@ -495,12 +531,7 @@ REDISPLAY:
 	$max = $#options if $max > $#options;
 
 	# Create menu text
-	my @menu = @options[$min..$max];
-	my $tidy = sub { local $_ = shift; s/\@\w+$//; return $_ };
-	if (defined $choice_text) { @menu = map (defined($choice_text->{$_}) && length($choice_text->{$_})
-						 ? $choice_text->{$_}
-						 : &$tidy($_),
-						 @menu) }
+	my @menu = $self->menu_text (@options[$min..$max]);
 
 	# Create menu callbacks
 	my @item_callback = map ([$choice_color . $_, sub { $choice = shift() + $min; print "\n" }],
@@ -527,7 +558,8 @@ REDISPLAY:
 	push @item_callback,
 	[$meta_color . "(save the game)",
 	 sub { if ($self->save_game ($self->get_save_filename)) { $self->print_latest_episode } }],
-	[$meta_color . "(restore the game)", sub { $self->load_and_print_game ($self->get_save_filename);
+	[$meta_color . "(restore the game)", sub { $self->load_game_and_confirm ($self->get_save_filename);
+						   $self->print_latest_episode;
 						   goto REDISPLAY }];
 
 	# variables determining whether to print the menu
@@ -612,7 +644,18 @@ REDISPLAY:
     return $options[$choice];
 }
 
-# Renderers/output adapters
+sub menu_text {
+    my ($self, @menu) = @_;
+    my $choice_text = $self->choice_text;
+    my $tidy = sub { local $_ = shift; s/\@\w+$//; return $_ };
+    if (defined $choice_text) { @menu = map (defined($choice_text->{$_}) && length($choice_text->{$_})
+					     ? $choice_text->{$_}
+					     : &$tidy($_),
+					     @menu) }
+    return @menu;
+}
+
+# Terminal renderers/output adapters
 sub print_story_so_far {
     my ($self) = @_;
     print "\n", $self->narrative_color, $self->story_excerpt (0, $self->story_episodes - 1), $self->reset_color;
@@ -623,6 +666,45 @@ sub print_latest_episode {
     print $self->narrative_color, $self->story_excerpt, $self->reset_color;
 }
 
+# HTML/JavaScript renderer
+sub render_dynamic_html {
+    my ($self, $onclick_function_name, $javascript_header) = @_;
+    $onclick_function_name = "console.log" unless defined $javascript_header;
+    $javascript_header = "" unless defined $javascript_header;
+    my $turn = $self->current_turn;
+    my @html;
+    push
+	@html,
+	"<html><script>", $javascript_header, "</script>\n",
+	"<body>\n", "<div id=\"episodes\">", "<div id=\"past_episodes\">\n";
+    for my $episode (0..$self->story_episodes-1) {
+	if ($episode == $self->story_episodes - 1) {
+	    push @html, "</div>", "<div id=\"latest_episode\">\n";
+	}
+	my $episode_text = join ("", $self->story_excerpt ($episode, $episode));
+	$episode_text =~ s/\n/<br\/>\n/g;
+	push
+	    @html,
+	    "<div id=\"episode_" . ($episode + 1) . "\">",
+	    $episode_text,
+	    "</div>\n";
+    }
+    push @html, "</div></div>", "<div id=\"options\">\n";
+    my ($term_prob_hashref, $next_term_listref) = $self->next_term_prob;
+    my $n_opt = 0;
+    for my $next_term (@$next_term_listref) {
+	my $next_prob = $term_prob_hashref->{$next_term};
+	++$n_opt;
+	push
+	    @html,
+	    "<div id=\"option_" . $n_opt . "\" prob=\"$next_prob\">\n",
+	    "<a href=\"#\" onclick=\"$onclick_function_name('$next_term',$turn)\">",
+	    $self->menu_text ($next_term), "</a><br/></div>\n";
+    }
+    push @html, "</div></body></html>\n";
+    return join ("", @html);
+}
+
 # An episode is the preamble text, or some terminal narrative text.
 # This method counts the number of episodes.
 sub story_episodes {
@@ -630,7 +712,7 @@ sub story_episodes {
     return @{$self->seq} + 1;  # the extra 1 is the preamble
 }
 
-# This method renders a slice of the episode list
+# This method renders a slice of the episode list as text
 sub story_excerpt {
     my ($self, $first_turn, $last_turn) = @_;
     $first_turn = $self->story_episodes - 1 unless defined $first_turn;

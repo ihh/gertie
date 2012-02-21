@@ -9,9 +9,13 @@ use lib abs_path("$FindBin::Bin/../lib");
 
 use Gertie::Robin;
 
+my $need_color_reset = 0;
+
 $SIG{'INT'} = sub {
-    print color('reset'), "\n";
-    print STDERR color('reset'), "\n";
+    if ($need_color_reset) {
+	print color('reset'), "\n";
+	print STDERR color('reset'), "\n";
+    }
     exit;
     kill 6, $$; # ABRT = 6
 };
@@ -19,6 +23,7 @@ $SIG{'INT'} = sub {
 my $verbose = 0;
 my $color = 0;
 my $c_parser = 0;
+my $render_html = 0;
 my ($grammar_file, $text_file, $game_file, $trace_file, $seed, $rounds);
 GetOptions ("grammar=s"   => \$grammar_file,
 	    "text=s"   => \$text_file,
@@ -28,7 +33,8 @@ GetOptions ("grammar=s"   => \$grammar_file,
 	    "rounds=i"  => \$rounds,
 	    "color" => \$color,
 	    "cparser" => \$c_parser,
-	    "restore=s" => \$game_file);  # not yet used
+	    "restore=s" => \$game_file,
+	    "html" => \$render_html);
 
 if (@ARGV && !defined $grammar_file) {
     $grammar_file = shift;
@@ -48,9 +54,24 @@ my $robin = Gertie::Robin->new_from_file
      'max_rounds' => $rounds,
      'use_color' => $color);
 
+# The -html option just tests the HTML rendering
+# Commented-out code shows how this would be used for CGI play
+if ($render_html) {
+    $robin->initialize_game_for_player;
+#    if ($CGI_COMMAND_PARAMETER = "move" && $CGI_TURN_PARAMETER == $robin->current_turn) {
+#	$robin->record_player_turn ($CGI_MOVE_PARAMETER);
+#	$robin->save_game ($robin->initial_restore_filename);
+#    }
+    print $robin->render_dynamic_html;
+    exit;
+}
+
+$need_color_reset = 1;
 $robin->play;
 
 
 END {
-    print color('reset');
+    if ($need_color_reset) {
+	print color('reset');
+    }
 }
