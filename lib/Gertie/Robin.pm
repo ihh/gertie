@@ -75,7 +75,7 @@ sub use_boring_color_scheme {
     }
 }
 
-sub reset_nl {
+sub reset_color_newline {
     my ($self) = @_;
     return $self->reset_color . "\n";
 }
@@ -145,9 +145,9 @@ sub play {
 
     # initialize debugging log
     my $log_color = $self->log_color;
-    my $reset_nl = $self->reset_nl;
-    my @begin_log = ($log_color, "--- BEGIN DEBUG LOG", $reset_nl);
-    my @end_log = ($log_color, "--- END DEBUG LOG", $reset_nl);
+    my $reset_color_newline = $self->reset_color_newline;
+    my @begin_log = ($log_color, "--- BEGIN DEBUG LOG", $reset_color_newline);
+    my @end_log = ($log_color, "--- END DEBUG LOG", $reset_color_newline);
     print @begin_log if $self->verbose;
 
     # open trace file
@@ -162,15 +162,14 @@ sub play {
     # initialize random seed
     $self->rand_seed (time) unless defined $self->rand_seed;
     srand ($self->rand_seed);
-    print $log_color, "Random seed: ", $self->rand_seed, $reset_nl if $self->verbose;
-
-    # reset state of game (i.e. terminal sequence)
-    $self->reset();
+    print $log_color, "Random seed: ", $self->rand_seed, $reset_color_newline if $self->verbose;
 
     # load state of game (i.e. terminal sequence), if applicable
     if (defined $self->initial_restore_filename) {
 	$self->load_and_print_game ($self->initial_restore_filename);
     } else {
+	# reset state of game (i.e. terminal sequence)
+	$self->reset();
 	# print preamble
 	$self->print_latest_episode;
     }
@@ -179,7 +178,11 @@ sub play {
 GAMELOOP:    
     while (1) {
 
-	# Round Robin: each turn (terminal) is offered to one agent, visiting all agents cyclically
+	# Round Robin: each turn (terminal) is offered to one agent, visiting all agents cyclically.
+	# Note that these rules distort the probabilistic structure of the grammar, encouraging cyclic sequences.
+	# The structure would not be distorted if we sampled the next agent randomly.
+	# TODO: add option to sample next agent randomly, then advance the turn counter until it's that agent's turn.
+
 	# One "round" = a visit to each of N agents, in order = N "turns"
 	my $turn = $self->current_turn;
 	my $round = $self->current_round;
@@ -187,12 +190,12 @@ GAMELOOP:
 
 	# status/log messages, for debugging
 	if ($self->verbose) {
-	    print $log_color, "Turn: ", $turn, $reset_nl;
-	    print $log_color, "Round: ", $round + 1, $reset_nl;
-	    print $log_color, "Agent: $agent", $reset_nl;
-	    print $log_color, "Player turns: ", $self->player_turns, $reset_nl;
-	    print $log_color, "Sequence: (@{$self->seq})", $reset_nl;
-	    print $log_color, "Inside matrix:\n", $self->inside->to_string, $reset_nl if $self->verbose > 9;
+	    print $log_color, "Turn: ", $turn, $reset_color_newline;
+	    print $log_color, "Round: ", $round + 1, $reset_color_newline;
+	    print $log_color, "Agent: $agent", $reset_color_newline;
+	    print $log_color, "Player turns: ", $self->player_turns, $reset_color_newline;
+	    print $log_color, "Sequence: (@{$self->seq})", $reset_color_newline;
+	    print $log_color, "Inside matrix:\n", $self->inside->to_string, $reset_color_newline if $self->verbose > 9;
 	}
 
 	# can we continue?
@@ -203,10 +206,10 @@ GAMELOOP:
 
 	# get next terminal
 	my $next_term;
-	if ($agent eq $self->gertie->player_agent) {
+	if ($self->is_players_turn) {
 	    $next_term = $self->player_choice;
 	} else {
-	    $next_term = $self->random_choice;
+	    $next_term = $self->agent_choice;
 	}
 
 	# record the turn
@@ -218,7 +221,7 @@ GAMELOOP:
 	# log
 	if ($self->verbose) {
 	    print @begin_log;
-	    print $log_color, "Terminal: $next_term", $reset_nl;
+	    print $log_color, "Terminal: $next_term", $reset_color_newline;
 	}
     }
 
@@ -240,19 +243,46 @@ sub play_continues {
     return $more_rounds && $more_probability;
 }
 
-# The dumbest AI for playing a move. Selects at random from the posterior
+# Test to see if it's the player's move
+sub is_players_turn {
+    my ($self) = @_;
+    return $self->current_agent eq $self->gertie->player_agent;
+}
+
+# Wrapper to record the player's move then advance to the next player move
+sub record_player_turn {
+    my ($self, $next_term) = @_;
+    if (defined $next_term) {
+	confess "Not player's turn" unless $self->is_players_turn;
+	$self->record_turn ($next_term);
+    } else {
+	confess "Can't skip player's turn" if $self->is_players_turn;
+    }
+    while (!$self->is_players_turn) {
+	$self->record_turn ($self->agent_choice);
+    }
+}
+
+# The dumbest AI for playing a move. Selects at random from the posterior for the current agent's move
+# Returns undef if no move is possible move for this agent
 sub random_choice {
     my ($self) = @_;
     my $next_term;
     my $agent = $self->current_agent;
 
-    my %term_prob = $self->inside->next_term_prob ($agent);
-    my @next_term = keys %term_prob;
-    if (@next_term) {
-	my @next_prob = map ($term_prob{$_}, @next_term);
-	$next_term = Gertie::sample (\@next_prob, \@next_term);
+    my ($term_prob_hashref, $next_term_listref) = $self->next_term_prob;
+    if (@$next_term_listref) {
+	my @next_prob = map ($term_prob_hashref->{$_}, @$next_term_listref);
+	$next_term = Gertie::sample (\@next_prob, $next_term_listref);
     }
     return $next_term;
+}
+
+# Wrapper for the dumbest AI ever
+# A place to hang future, even dumber AI
+sub agent_choice {
+    my ($self) = @_;
+    return $self->random_choice;
 }
 
 # Accessor for current agent
@@ -330,7 +360,7 @@ sub reset {
 # Load game
 sub load_game {
     my ($self, $filename, $err_handler) = @_;
-    $err_handler = sub { print $self->meta_color, @_, $self->reset_nl } unless defined $err_handler;
+    $err_handler = sub { print $self->meta_color, @_, $self->reset_color_newline } unless defined $err_handler;
     unless (-e $filename)
     { &$err_handler ("Oops - I can't find a game called '$filename'. Are you sure you spelled it right?"); return 0 }
     local *FILE;
@@ -353,7 +383,7 @@ sub load_and_print_game {
     my ($self, $filename) = @_;
     my $ok = $self->load_game ($filename);
     if ($ok) {
-	print $self->meta_color, "Game restored from file '$filename'.", $self->reset_nl;
+	print $self->meta_color, "Game restored from file '$filename'.", $self->reset_color_newline;
 	$self->print_latest_episode;
     }
     return $ok;
@@ -362,7 +392,7 @@ sub load_and_print_game {
 # Save game
 sub save_game {
     my ($self, $filename, $err_handler) = @_;
-    $err_handler = sub { print $self->meta_color, @_, $self->reset_nl } unless defined $err_handler;
+    $err_handler = sub { print $self->meta_color, @_, $self->reset_color_newline } unless defined $err_handler;
     if (-e $filename) {
 	&$err_handler
 	    ("There's already a file called '$filename'. Are you sure you want to overwrite it? ",
@@ -405,7 +435,7 @@ sub get_save_filename {
 	$self->meta_color,
 	"Please enter a filename (or just hit RETURN to use the default filename, '",
 	$self->default_save_filename, "')",
-	$self->reset_nl;
+	$self->reset_color_newline;
     my $filename = <>;
     chomp $filename;
     $filename =~ s/^\s*(.*?)\s*$/$1/;
@@ -413,13 +443,23 @@ sub get_save_filename {
     return $filename;
 }
 
+# Probability distribution over next terminal
+# Returns a list of two references: the distribution (as a hashref), and the sorted key list (as an arrayref)
+sub next_term_prob {
+    my ($self) = @_;
+    my %term_prob_hash = $self->inside->next_term_prob ($self->current_agent);
+    my @term_list = sort { $term_prob_hash{$b} <=> $term_prob_hash{$a}
+			   || $a cmp $b } keys %term_prob_hash;
+    return (\%term_prob_hash, \@term_list);
+}
+
 # Present a menu on a ANSI terminal; read choice from stdin
 sub player_choice {
     my ($self) = @_;
 
 REDISPLAY:
-    my %term_prob = $self->inside->next_term_prob ($self->current_agent);
-    my @options = sort { $term_prob{$b} <=> $term_prob{$a} } keys %term_prob;
+    my ($tp_hash, $t_list) = $self->next_term_prob;
+    my @options = @$t_list;
 
     return undef unless @options;
 
