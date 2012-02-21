@@ -47,6 +47,16 @@ sub new_robin {
     return $self;
 }
 
+sub new_from_file {
+    my ($class, $filename, %args) = @_;
+    my $gertie = Gertie->new_from_file ($filename, defined($args{'gertie_args'}) ? @{$args{'gertie_args'}} : ());
+    my $self = $class->new_robin ($gertie, 'text_filename' => "$filename.text", %args);
+    $self->load_text_from_file ($self->text_filename) if -e $self->text_filename;
+    # return
+    return $self;
+}
+
+# Color scheme setters
 sub use_cool_color_scheme {
     my ($self) = @_;
     my %color = ('log_color' => color('red on_black'),
@@ -75,20 +85,13 @@ sub use_boring_color_scheme {
     }
 }
 
+# Helper to prevent runaway background-colored lines
 sub reset_color_newline {
     my ($self) = @_;
     return $self->reset_color . "\n";
 }
 
-sub new_from_file {
-    my ($class, $filename, %args) = @_;
-    my $gertie = Gertie->new_from_file ($filename, defined($args{'gertie_args'}) ? @{$args{'gertie_args'}} : ());
-    my $self = $class->new_robin ($gertie, 'text_filename' => "$filename.text", %args);
-    $self->load_text_from_file ($self->text_filename) if -e $self->text_filename;
-    # return
-    return $self;
-}
-
+# Initializers for narrative text database
 sub load_text_from_file {
     my ($self, $filename) = @_;
     local *FILE;
@@ -109,6 +112,7 @@ sub load_text_from_string {
     $self->cleanup_text_parser;
 }
 
+# Parse/build methods for narrative text database
 sub init_text_parser {
     my ($self) = @_;
     $self->{'choice_text'} = {};
@@ -136,7 +140,7 @@ sub parse_text_line {
     }
 }
 
-# Play the game over an ANSI terminal
+# Play a game interactively over an ANSI terminal
 sub play {
     my ($self) = @_;
 
