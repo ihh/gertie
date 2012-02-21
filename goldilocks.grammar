@@ -1,6 +1,9 @@
+// We need to start by declaring that there are two agents playing this game
+// The first agent is always the player
 @p;  // grammar symbols ending in '@p' belong to the player
 @c;  // grammar symbols ending in '@c' belong to the computer narrator
 
+// Now the structure
 story ->
 introduction@c goldilocks@p goldilocks_main@c
 | introduction@c punkilocks@p punkilocks_main@c;
