@@ -1,5 +1,5 @@
-@p;
-@c;
+@p;  // grammar symbols ending in '@p' belong to the player
+@c;  // grammar symbols ending in '@c' belong to the computer narrator
 
 story ->
 introduction@c goldilocks@p goldilocks_main@c
