@@ -208,7 +208,7 @@ GAMELOOP:
 	print @end_log if $self->verbose;
 	if ($agent eq $self->gertie->player_agent) {
 	    $next_term = $self->player_choice (@next_term);
-	    # hack: if next_term returns undef, then redisplay menu withour recording a turn
+	    # hack: if next_term returns undef, then redisplay menu without recording a turn
 	    if (!defined $next_term) {
 		next GAMELOOP;
 	    }
