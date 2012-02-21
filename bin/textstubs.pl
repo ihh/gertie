@@ -37,6 +37,7 @@ die "You must specify a filename" unless defined $grammar_file;
 my $robin = Gertie::Robin->new_from_file
     ($grammar_file,
      'verbose' => $verbose,
+     'gertie_args' => [ 'verbose' => $verbose ],
      defined($text_file) ? ('text_filename' => $text_file) : (),  # don't override default
     );
 my $gertie = $robin->gertie;
@@ -51,7 +52,9 @@ my @choice_term = sort (grep (length($choice{$_}) > 0, keys %choice));
 my @narrative_term = sort (grep (length($narrative{$_}) > 0, keys %narrative));
 
 my %has_text = map (($_ => 1), @term, @choice_term, @narrative_term);
-my @sym = sort keys %has_text;
+my %sym_order = map (($_ => defined ($gertie->symbol_order->{$_}) ? $gertie->symbol_order->{$_} : 0),
+		     keys %has_text);
+my @sym = sort { $sym_order{$a} <=> $sym_order{$b} } keys %has_text;
 
 my %owned_by_player = map (($_ => 1),
 			   grep (defined($gertie->term_owner_by_name->{$_})

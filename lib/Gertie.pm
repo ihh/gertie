@@ -24,7 +24,10 @@ sub new_gertie {
     my $quant_regex = '[\?\*\+]|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\}';
     my $self = AutoHash->new ( 'end' => "end",
 			       'rule' => [],
-			       'symbol' => {},
+
+			       'symbol_order' => {},
+			       'symbol_list' => [],
+
 			       'max_inside_len' => undef,
 			       'rule_prob_by_name' => {},
 			       'outgoing_prob_by_name' => {},
@@ -44,7 +47,7 @@ sub new_gertie {
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
-    $self->symbol->{$self->end} = 1;
+    $self->add_symbols ($self->end);
     $self->inside_class ('Gertie::Inside::CParser') if $self->use_c_parser;
     return $self;
 }
@@ -180,13 +183,24 @@ sub add_rule {
     push @{$self->rule}, [$lhs, $rhs1, $rhs2, $prob, @{$self->rule} + 0];
     $self->rule_prob_by_name->{$lhs}->{$rhs1}->{$rhs2} = $prob;
     $self->outgoing_prob_by_name->{$lhs} += $prob;
-    grep (++$self->symbol->{$_}, $lhs, $rhs1, $rhs2);
+    $self->add_symbols ($lhs, $rhs1, $rhs2);
+}
+
+sub add_symbols {
+    my ($self, @sym) = @_;
+    for my $sym (@sym) {
+	if (!defined $self->symbol_order->{$sym}) {
+	    push @{$self->symbol_list}, $sym;
+	    $self->symbol_order->{$sym} = @{$self->symbol_list};
+	}
+    }
 }
 
 sub add_non_Chomsky_rule {
     my ($self, $lhs, $rhs_listref, $prob) = @_;
     $prob = 1 unless defined $prob;
     warn "Adding non-Chomsky rule: $lhs -> @$rhs_listref ($prob)" if $self->verbose > 10;
+    $self->add_symbols ($lhs, @$rhs_listref);
     my @rhs = @$rhs_listref;
     if (@rhs == 0) {
 	$self->add_rule ($lhs, $self->end, undef, $prob);
@@ -306,7 +320,7 @@ sub index_symbols {
     # build transition graph
     my $graph = Graph::Directed->new;
     $self->{'graph'} = $graph;
-    for my $sym (keys %{$self->symbol}) {
+    for my $sym (@{$self->symbol_list}) {
 	$graph->add_vertex ($sym);
     }
     for my $rule (@{$self->rule}) {
@@ -338,7 +352,7 @@ sub index_symbols {
 				   @{$self->sym_name}) };
 
     # We define "terminals" to include 'end'
-    my @term = grep (!exists($self->rule_prob_by_name->{$_}), sort keys %{$self->symbol});
+    my @term = grep (!exists($self->rule_prob_by_name->{$_}), sort @{$self->symbol_list});
     $self->{'term_name'} = \@term;
     $self->{'term_id'} = [map ($self->sym_id->{$_}, @term)];
     $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
