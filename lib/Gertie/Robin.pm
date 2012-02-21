@@ -352,7 +352,6 @@ sub reset {
     $self->tokseq ([]);
     $self->seq_turn ([]);
     $self->inside ($self->gertie->prefix_Inside ([], @{$self->inside_args}));  # initialize empty Inside matrix
-    $self->inside->verbose ($self->verbose);  # make the Inside matrix as verbose as we are, for log tidiness
     $self->{'turns'} = { map (($_ => 0), @{$self->gertie->agents}) };
     $self->current_turn(0);
 }
