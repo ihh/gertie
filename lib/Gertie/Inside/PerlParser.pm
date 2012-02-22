@@ -5,6 +5,17 @@ use Gertie;
 use Gertie::Inside;
 extends 'Gertie::Inside';
 
+# Let seq[0] be the first symbol in the sequence, seq[1] the second, etc., up to seq[length-1] the last symbol.
+# For j>=i (with j=i corresponding to the empty subsequence):
+# By "the subsequence from i..j-1" we mean inclusive of both i and j-1, or the empty sequence if i=j.
+
+# Inside matrix
+# p(i,j,sym) = P(seq[i]..seq[j-1] | sym)
+#  = probability that parse tree rooted at sym will generate subseq i..j-1 (inclusive)
+#  = sum_{symB,symC} P(sym->symB symC) sum_{k=i}^j p(i,k,symB) p(k,j,symC)
+
+# P(sequence) = p(0,length,start)
+
 # constructor
 sub new_Inside {
     my ($class, $gertie, $tokseq, @args) = @_;
@@ -52,6 +63,8 @@ sub push_tok {
     push @$tokseq, @new_tok;
 
     # Create Inside matrix
+    # Let seq[0] be the first symbol in the sequence, seq[1] the second, etc.
+    # For j>=i (with j=i corresponding to the empty subsequence):
     # p(i,j,sym) = P(seq[i]..seq[j-1] | sym)
     #            = probability that parse tree rooted at sym will generate subseq i..j-1 (inclusive)
     # Note:
