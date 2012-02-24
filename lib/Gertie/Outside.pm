@@ -40,19 +40,26 @@ use Term::ANSIColor;
 #  = sum_{symA,symB} P(symA->symB sym) sum_{k=0}^i r(k,j,symA) p(k,i,symB)
 #    + sum_{symA,symC} P(symA->sym symC) sum_{k=j}^{length} r(i,k,symA) p(j,k,symC)
 
+# r(0,length,start) = 1
+
 # Posterior probability that symbol X generated subseq i..j-1 is r(i,j,X)*p(i,j,X)/p(0,length,start)
 # Post. prob. that rule A->BC generated i..j-1 and j..k-1 is r(i,j,A)*p(i,k,B)*p(k,j,C)*P(A->BC)/p(0,length,start)
 
 
 # constructor
 sub new_Outside {
-    my ($class, $inside) = @_;
+    my ($class, $inside, @args) = @_;
     my $self = AutoHash->new ( 'inside' => $inside,
 			       'gertie' => $inside->gertie,
 			       'tokseq' => $inside->tokseq,
+			       'r' => [map ([map ([0, 1..$inside->gertie->n_symbols],
+						  $_..$inside->len)],
+					    0..$inside->len)],
+			       'rule_count' => map (0, 1..$inside->gertie->n_symbols),
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
+    $self->fill;
     return $self;
 }
 
@@ -72,8 +79,8 @@ sub to_string {
 	for (my $j = $i; $j <= $len; ++$j) {
 	    push @out, "Outside ($i,$j):";
 	    for my $sym_id (0..$#sym) {
-#		my $pval = $self->get_p ($i, $j, $sym_id);
-#		push @out, " ", $sym[$sym_id], "=>", $pval if $pval > 0;
+		my $rval = $self->r->[$i]->[$j]->[$sym_id];
+		push @out, " ", $sym[$sym_id], "=>", $rval if $rval > 0;
 	    }
 	    push @out, "\n";
 	}
@@ -81,9 +88,66 @@ sub to_string {
     return join ("", @out);
 }
 
-sub post_prob {
+sub fill {
+    my ($self) = @_;
+
+    my $len = $self->len;
+    my $rule_count = $self->rule_count;
+
+    my $gertie = $self->gertie;
+    my $n_symbols = $gertie->n_symbols;
+    my $rule = $gertie->tokenized_rule;
+
+    my $inside = $self->inside;
+    my $final_p = $inside->final_p;
+
+    my $r = $self->r;
+    $r->[0]->[$len]->[$self->start] = 1;
+
+    for (my $j = $len; $j >= 0; --$j) {
+	for (my $i = 0; $i <= $j; ++$i) {
+	    for (my $sym = $n_symbols - 1; $sym >= 0; --$sym) {
+
+		# r(i,j,sym) = sum_{symA,symB} P(symA->symB sym) sum_{k=0}^i r(k,j,symA) p(k,i,symB)
+		#              + sum_{symA,symC} P(symA->sym symC) sum_{k=j}^{length} r(i,k,symA) p(j,k,symC)
+		my $rval = $r->[$i]->[$j]->[$sym];
+		for my $rule_index (@{$gertie->rule_by_rhs2->{$sym}}) {
+		    my ($lhs, $rhs1, $rhs2, $rule_prob) = @{$rule->[$rule_index]};
+		    for (my $k = 0; $k <= $i; ++$k) {
+			$rval += $rule_prob * $r->[$k]->[$j]->[$lhs] * $inside->get_p($k,$i,$rhs1);
+		    }
+		}
+		for my $rule_index (@{$gertie->rule_by_rhs1->{$sym}}) {
+		    my ($lhs, $rhs1, $rhs2, $rule_prob) = @{$rule->[$rule_index]};
+		    for (my $k = $i; $k <= $len; ++$k) {
+			$rval += $rule_prob * $r->[$i]->[$k]->[$lhs] * $inside->get_p($j,$k,$rhs2);
+		    }
+		}
+		$r->[$i]->[$j]->[$sym] = $rval;
+
+		# Accumulate counts
+		for my $rule_index (@{$gertie->rule_by_lhs->{$sym}}) {
+		    for (my $k = $i; $k <= $j; ++$k) {
+			$rule_count->[$rule_index] += $self->post_rule_prob ($i, $j, $k, $rule_index) / $final_p;
+		    }
+		}
+	    }
+	}
+    }
+}
+
+# Posterior probability that symbol X generated subseq i..j-1 is r(i,j,X)*p(i,j,X)/p(0,length,start)
+sub post_nonterm_prob {
     my ($self, $i, $j, $sym) = @_;
-    # more to go here
+    return $self->r->[$i]->[$j]->[$sym] * $self->inside->get_p($i,$j,$sym) / $self->inside->final_p;
+}
+
+# Post. prob. that rule A->BC generated i..j-1 and j..k-1 is r(i,j,A)*p(i,k,B)*p(k,j,C)*P(A->BC)/p(0,length,start)
+sub post_rule_prob {
+    my ($self, $i, $j, $k, $rule_index) = @_;
+    my ($lhs, $rhs1, $rhs2, $prob) = @{$self->gertie->tokenized_rule->[$rule_index]};
+    return $self->r->[$i]->[$j]->[$lhs] * $self->inside->get_p($i,$k,$rhs1) * $self->inside->get_p($k,$j,$rhs2) * $prob
+	/ $self->inside->final_p;
 }
 
 1;

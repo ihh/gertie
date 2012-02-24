@@ -2,6 +2,7 @@ package Gertie;
 use Moose;
 use AutoHash;
 use Gertie::Inside;
+use Gertie::Outside;
 extends 'AutoHash';
 
 use strict;
@@ -24,13 +25,12 @@ sub new_gertie {
     my $quant_regex = '[\?\*\+]|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\}';
     my $self = AutoHash->new ( 'end' => "end",
 			       'rule' => [],
+			       'rule_index_by_name' => {},
 
 			       'symbol_order' => {},
 			       'symbol_list' => [],
 
 			       'max_inside_len' => undef,
-			       'rule_prob_by_name' => {},
-			       'outgoing_prob_by_name' => {},
 			       'term_owner_by_name' => {},
 			       'agents' => [qw(p)],  # first agent is the human player
 
@@ -172,17 +172,16 @@ sub add_rule {
     $self->{'start'} = $lhs unless defined $self->{'start'};  # First named nonterminal is start
     return if $prob == 0;  # Don't bother tracking zero-weight rules
     # Be idempotent
-    if (exists $self->rule_prob_by_name->{$lhs}->{$rhs1}->{$rhs2}) {
-	my $old_prob = $self->rule_prob_by_name->{$lhs}->{$rhs1}->{$rhs2};
+    if (exists $self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2}) {
+	my $old_prob = $self->get_rule_prob ($self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2});
 	if ($old_prob != $prob) {
 	    confess "Attempt to change probability of rule ($lhs->$rhs1 $rhs2) from $old_prob to $prob";
 	}
 	return;
     }
     # Record the rule
+    $self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2} = @{$self->rule};
     push @{$self->rule}, [$lhs, $rhs1, $rhs2, $prob, @{$self->rule} + 0];
-    $self->rule_prob_by_name->{$lhs}->{$rhs1}->{$rhs2} = $prob;
-    $self->outgoing_prob_by_name->{$lhs} += $prob;
     $self->add_symbols ($lhs, $rhs1, $rhs2);
 }
 
@@ -273,6 +272,19 @@ sub add_deferred_rules {
     }
 }
 
+# get_rule_prob: get a rule probability.
+sub get_rule_prob {
+    my ($self, $rule_index) = @_;
+    return $self->rule->[$rule_index]->[3];  # fields are (lhs,rhs1,rhs2,prob)
+}
+
+# set_rule_prob: change a rule probability.
+# Call index() after this method, to update all caches
+sub set_rule_prob {
+    my ($self, $rule_index, $new_prob) = @_;
+    $self->rule->[$rule_index]->[3] = $new_prob;  # fields are (lhs,rhs1,rhs2,prob)
+}
+
 # Index: convert symbols & rules to integers
 sub index {
     my ($self) = @_;
@@ -288,9 +300,15 @@ sub index_symbols {
     confess "No rules to index" unless @{$self->rule};
 
     # Normalize rules
+    my %outgoing_prob_by_name;
     for my $rule (@{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
-	$prob /= $self->outgoing_prob_by_name->{$lhs};
+	$outgoing_prob_by_name{$lhs} += $prob;
+    }
+
+    for my $rule (@{$self->rule}) {
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
+	$prob /= $outgoing_prob_by_name{$lhs};
 	@$rule = ($lhs, $rhs1, $rhs2, $prob, $rule_index);
     }
 
@@ -352,7 +370,7 @@ sub index_symbols {
 				   @{$self->sym_name}) };
 
     # We define "terminals" to include 'end'
-    my @term = grep (!exists($self->rule_prob_by_name->{$_}), sort @{$self->symbol_list});
+    my @term = grep (!exists($self->rule_index_by_name->{$_}), sort @{$self->symbol_list});
     $self->{'term_name'} = \@term;
     $self->{'term_id'} = [map ($self->sym_id->{$_}, @term)];
     $self->{'is_term'} = {map (($_ => 1), @{$self->term_id})};
@@ -395,8 +413,6 @@ sub index_symbols {
 
     # delete transient indices/lookups/variables we have no further use for
     delete $self->{'symbols'};  # use $self->sym_name instead
-    delete $self->{'rule_prob_by_name'};
-    delete $self->{'outgoing_prob_by_name'};
 }
 
 sub dense_graph {
@@ -415,6 +431,11 @@ sub player_agent {
     return $self->agents->[0];
 }
 
+sub n_rules {
+    my ($self) = @_;
+    return @{$self->rule} + 0;
+}
+
 sub n_symbols {
     my ($self) = @_;
     return @{$self->sym_name} + 0;
@@ -423,15 +444,19 @@ sub n_symbols {
 # Index rules
 sub index_rules {
     my ($self) = @_;
+    $self->{'tokenized_rule'} = [];
     $self->{'rule_by_lhs_rhs1'} = {};
+    $self->{'rule_by_lhs'} = {};
     $self->{'rule_by_rhs1'} = {};
     $self->{'rule_by_rhs2'} = {};
     for my $rule (@{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
 	my ($lhs_id, $rhs1_id, $rhs2_id) = map ($self->sym_id->{$_}, $lhs, $rhs1, $rhs2);
 	push @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}}, [$rhs2_id, $prob, $rule_index];
+	push @{$self->rule_by_lhs->{$lhs_id}}, $rule_index;
 	push @{$self->rule_by_rhs1->{$rhs1_id}}, $rule_index;
 	push @{$self->rule_by_rhs2->{$rhs2_id}}, $rule_index;
+	push @{$self->tokenized_rule}, [$lhs_id, $rhs1_id, $rhs2_id, $prob];
 	warn "Indexed rule: $lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
     }
 }
@@ -578,5 +603,45 @@ sub parse_tree_sequence {
 	? map ($self->parse_tree_sequence($_), @rhs)
 	: ($lhs eq $self->end ? () : $lhs);
 }
+
+# do Inside-Outside training
+sub train {
+    my ($self, $training_seq_list) = @_;
+    my $last_prob;
+    while (1) {
+	my $prob = $self->single_EM_iteration_likelihood ($training_seq_list);
+	last if defined($last_prob) && $prob < $last_prob;
+	$last_prob = $prob;
+    }
+}
+
+sub single_EM_iteration_likelihood {
+    my ($self, $training_seq_list) = @_;
+    my @rule_count = map (0, @{$self->rule});
+    my $all_prob = 1;
+    for my $seq (@$training_seq_list) {
+	my $inside = $self->prefix_Inside ($self->tokenize (@$seq));
+	my $outside = Gertie::Outside->new_Outside ($inside, 'rule_count' => \@rule_count);
+	$all_prob *= $inside->final_p;
+    }
+    $self->update_rule_probs (\@rule_count);
+    return $all_prob;
+}
+
+# update rule probabilities from a set of Inside-Outside counts
+sub update_rule_probs {
+    my ($self, $rule_count) = @_;
+    my %count_by_lhs;
+    for my $rule_index (0..$#{$self->rule}) {
+	my ($lhs, $rhs1, $rhs2, $prob) = @{$self->tokenized_rule->[$rule_index]};
+	$count_by_lhs{$lhs} += $rule_count->[$rule_index];
+    }
+    for my $rule_index (0..$#{$self->rule}) {
+	my ($lhs, $rhs1, $rhs2, $prob) = @{$self->tokenized_rule->[$rule_index]};
+	$self->set_rule_prob ($rule_count->[$rule_index] / $count_by_lhs{$lhs});
+    }
+    $self->index();  # update any caches that contain probabilities (a bit inefficient, as it also toposorts)
+}
+
 
 1;
