@@ -23,6 +23,7 @@ sub new_gertie {
     my ($class, @args) = @_;
     my $sym_regex = '[a-z][\w@]*\b';
     my $quant_regex = '[\?\*\+]|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\}';
+    my $quantified_sym_regex = "$sym_regex(|$quant_regex)";
     my $self = AutoHash->new ( 'end' => "end",
 			       'rule' => [],
 			       'rule_index_by_name' => {},
@@ -36,8 +37,9 @@ sub new_gertie {
 
 			       'agent_regex' => '[a-z]\w*\b',
 			       'sym_regex' => $sym_regex,
-			       'lhs_regex' => $sym_regex,
-			       'rhs_regex' => "$sym_regex(|$quant_regex)",
+			       'sym_with_quant_regex' => $quantified_sym_regex,
+			       'lhs_regex' => $quantified_sym_regex,
+			       'rhs_regex' => $quantified_sym_regex,
 			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)',
 			       'quantifier_regex' => $quant_regex,
 
@@ -105,14 +107,14 @@ sub parse_line {
     my $prob_regex = $self->prob_regex;
 
     if (/^\s*($lhs_regex)\s*\->\s*($rhs_regex)\s*(|$rhs_regex)\s*($prob_regex)\s*;?\s*$/) {  # Transition (A->B) or Chomsky-form rule (A->B C) with optional probability
-	my ($lhs, $rhs1, $rhs1_crap, $rhs2, $rhs2_crap, $prob) = ($1, $2, $3, $4, $5, $6);
+	my ($lhs, $lhs_crap, $rhs1, $rhs1_crap, $rhs2, $rhs2_crap, $prob) = ($1, $2, $3, $4, $5, $6, $7);
 	$self->foreach_agent ([$lhs, $rhs1, $rhs2],
 			      sub { my ($lhs, $rhs1, $rhs2) = @_;
 				    my ($deferred_rule, $newrhs1, $newrhs2) = $self->process_quantifiers ($rhs1, $rhs2);
 				    $self->add_rule ($lhs, $newrhs1, $newrhs2, $prob);
 				    $self->add_deferred_rules ($deferred_rule) });
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*)\s*($prob_regex)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
-	my ($lhs, $rhs, $rhs1, $rhs_crap, $prob) = ($1, $2, $3, $4, $5);
+	my ($lhs, $lhs_crap, $rhs, $rhs1, $rhs_crap, $prob) = ($1, $2, $3, $4, $5, $6);
 	# Convert "A->B C D E" into "A -> B.C.D E;  B.C.D -> B.C D;  B.C -> B C"
 	$rhs =~ s/^\s*(.*?)\s*$/$1/;
 	my @rhs = split /\s+/, $rhs;
@@ -123,7 +125,7 @@ sub parse_line {
 				    $self->add_non_Chomsky_rule ($lhs, \@newrhs, $prob);
 				    $self->add_deferred_rules ($deferred_rule) });
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*\s*($prob_regex)(\s*\|(\s*$rhs_regex)*\s*($prob_regex))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
-	my ($lhs, $all_rhs) = ($1, $2);
+	my ($lhs, $lhs_crap, $all_rhs) = ($1, $2, $3);
 	my @rhs = split /\|/, $all_rhs;
 	for my $rhs (@rhs) { $self->parse_line ("$lhs -> $rhs") }
     } elsif (/^\s*\@($agent_regex)((\s+$lhs_regex)*)\s*;?$/) {  # @agent_name symbol1 symbol2 symbol3...
@@ -230,27 +232,29 @@ sub process_quantifiers {
 	$sym =~ s/\{0,(\d+)\}$/{,$1}/;  # Convert X{0,N} into X{,N}
 	push @sym_ret, $sym;
 	if ($sym =~ /^($sym_regex)\?$/) {
-	    push @deferred_rule, [$sym, $1];
-	    push @deferred_rule, [$sym, $self->end];
+	    push @deferred_rule, [.5, $sym, $1];
+	    push @deferred_rule, [.5, $sym, $self->end];
 	} elsif ($sym =~ /^($sym_regex)\*$/) {
-	    push @deferred_rule, [$sym, $1, $sym];
-	    push @deferred_rule, [$sym, $self->end];
+	    push @deferred_rule, [.5, $sym, $1, $sym];
+	    push @deferred_rule, [.5, $sym, $self->end];
 	} elsif ($sym =~ /^($sym_regex)\+$/) {
 	    my $base = $1;
-	    push @deferred_rule, [$sym, $base, $sym];
-	    push @deferred_rule, [$sym, $base];
+	    push @deferred_rule, [.5, $sym, $base, $sym];
+	    push @deferred_rule, [.5, $sym, $base];
 	} elsif ($sym =~ /^($sym_regex)\{(\d*),(\d*)\}$/) {
 	    my ($base, $min, $max) = ($1, $2, $3);
 	    confess "Bad quantifiers in nonterminal $sym" if (length($max) && $max < 0) || (length($min) && $min <= 0) || (length($max) && length($min) && $max < $min) || ($min eq "" && $max eq "");
 	    if (length $max) {
-		for (my $n = length($min) ? $min : 0; $n <= $max; ++$n) {
+		my $start = length($min) ? $min : 0;
+		my $count = $max + 1 - $start;
+		for (my $n = $start; $n <= $max; ++$n) {
 		    if ($n == 0) {
-			push @deferred_rule, [$sym, $self->end];
+			push @deferred_rule, [1/$count, $sym, $self->end];
 		    } else {
-			push @deferred_rule, [$sym, map ($base, 1..$n)];
+			push @deferred_rule, [1/$count, $sym, map ($base, 1..$n)];
 		    }
 		}
-	    } else {  # $min > 1
+	    } else {  # $min > 1, no $max
 		push @deferred_rule, [$sym, map ($base, 1..$min-1), "$base+"];
 		push @deferred_rule, ["$base+", $base, "$base+"];
 		push @deferred_rule, ["$base+", $base];
@@ -263,11 +267,11 @@ sub process_quantifiers {
 sub add_deferred_rules {
     my ($self, $deferred_rule_listref) = @_;
     for my $rule (@$deferred_rule_listref) {
-	my ($deflhs, @defrhs) = @$rule;
+	my ($prob, $deflhs, @defrhs) = @$rule;
 	if (@defrhs <= 2) {
-	    $self->add_rule ($deflhs, @defrhs);
+	    $self->add_rule ($deflhs, @defrhs[0,1], $prob);
 	} else {
-	    $self->add_non_Chomsky_rule ($deflhs, \@defrhs);
+	    $self->add_non_Chomsky_rule ($deflhs, \@defrhs, $prob);
 	}
     }
 }
@@ -292,12 +296,8 @@ sub index {
     $self->index_rules;
 }
 
-# Treating each rule "A->B C" as an edge "A->B", compute toposort
-sub index_symbols {
+sub normalize_rule_probs {
     my ($self) = @_;
-
-    # Check that we have some rules & symbols to index
-    confess "No rules to index" unless @{$self->rule};
 
     # Normalize rules
     my %outgoing_prob_by_name;
@@ -321,6 +321,7 @@ sub index_symbols {
     }
 
     # find probability that each symbol has a null path to 'end'
+    # this hash should be sparse: every key must have a nonzero (positive) value
     my @null_q = ($self->end);
     my %p_empty = ($self->end => 1);
     while (@null_q) {
@@ -335,19 +336,54 @@ sub index_symbols {
     }
     warn "Nonterminals that can be null: ", join(" ",keys%p_empty) if $self->verbose > 1;
 
+    $self->{'p_empty_by_name'} = \%p_empty;
+}
+
+sub update_p_empty {
+    my ($self) = @_;
+    my $p_empty = $self->p_empty_by_name;
+    $self->{'p_empty'} = { map (($self->sym_id->{$_} => $p_empty->{$_}), keys %$p_empty) };
+    $self->{'p_nonempty'} = { map (defined($p_empty->{$_})
+				   ? ($p_empty->{$_} == 1
+				      ? ()
+				      : ($self->sym_id->{$_} => (1 - $p_empty->{$_})))
+				   : ($self->sym_id->{$_} => 1),
+				   @{$self->sym_name}) };
+    delete $self->{'p_empty_by_name'};
+}
+
+sub update_indexed_rule_probs {
+    my ($self) = @_;
+    $self->normalize_rule_probs;
+    $self->update_p_empty;
+    $self->index_rules;
+}
+
+# Treating each rule "A->B C" as an edge "A->B", compute toposort
+sub index_symbols {
+    my ($self) = @_;
+
+    # Check that we have some rules & symbols to index
+    confess "No rules to index" unless @{$self->rule};
+
+    # normalize
+    $self->normalize_rule_probs;
+
     # build transition graph
     my $graph = Graph::Directed->new;
     $self->{'graph'} = $graph;
     for my $sym (@{$self->symbol_list}) {
 	$graph->add_vertex ($sym);
     }
+
+    my $p_empty = $self->p_empty_by_name;
     for my $rule (@{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
 	$graph->add_edge ($lhs, $rhs1);
-	$graph->add_edge ($lhs, $rhs2) if defined $p_empty{$rhs1};
+	$graph->add_edge ($lhs, $rhs2) if defined $p_empty->{$rhs1};
 	if ($self->verbose > 2) {
 	    warn "Added edge $lhs->$rhs1";
-	    warn "Added edge $lhs->$rhs2" if defined $p_empty{$rhs1};
+	    warn "Added edge $lhs->$rhs2" if defined $p_empty->{$rhs1};
 	}
     }
 
@@ -361,13 +397,7 @@ sub index_symbols {
     $self->{'start_id'} = $self->sym_id->{$self->start};
     $self->{'end_id'} = $self->sym_id->{$self->end};
 
-    $self->{'p_empty'} = { map (($self->sym_id->{$_} => $p_empty{$_}), keys %p_empty) };
-    $self->{'p_nonempty'} = { map (defined($p_empty{$_})
-				   ? ($p_empty{$_} == 1
-				      ? ()
-				      : ($self->sym_id->{$_} => (1 - $p_empty{$_})))
-				   : ($self->sym_id->{$_} => 1),
-				   @{$self->sym_name}) };
+    $self->update_p_empty;
 
     # We define "terminals" to include 'end'
     my @term = grep (!exists($self->rule_index_by_name->{$_}), sort @{$self->symbol_list});
@@ -498,7 +528,7 @@ sub to_string {
 		$rhs =~ s/^\s*//;
 		$rhs = $self->end unless length $rhs;
 		$rule_prob = ($rule_prob == 1 ? "" : " ($rule_prob)");
-		push @text, ($lhs =~ /$quant_regex/ ? "// " : "") . "$lhs -> $rhs$rule_prob;\n";
+		push @text, "$lhs -> $rhs$rule_prob;\n";
 	    }
 	}
     }
