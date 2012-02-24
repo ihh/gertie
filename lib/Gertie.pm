@@ -670,7 +670,7 @@ sub update_rule_probs {
 	my ($lhs, $rhs1, $rhs2, $prob) = @{$self->tokenized_rule->[$rule_index]};
 	$self->set_rule_prob ($rule_count->[$rule_index] / $count_by_lhs{$lhs});
     }
-    $self->index();  # update any caches that contain probabilities (a bit inefficient, as it also toposorts)
+    $self->update_indexed_rule_probs;  # update any caches that contain probabilities
 }
 
 
