@@ -218,6 +218,7 @@ sub next_term_prob {
 	    next unless $agent_ok{$self->gertie->term_owner->{$term_id}};
 	    push @term_id, $term_id;
 	}
+	my $total_prob = 0;
 	my $progress = Time::Progress->new;
 	$progress->restart ('max' => $#term_id);
 	for my $n (0..$#term_id) {
@@ -225,6 +226,7 @@ sub next_term_prob {
 	    my $term_name = $self->gertie->sym_name->[$term_id];
 	    $self->push_tok ($term_id);
 	    my $prob = $self->final_total / $continue_evidence;
+	    $total_prob += $prob;
 	    if ($prob > 0) { $term_prob{$self->gertie->sym_name->[$term_id]} = $prob }
 	    $self->pop_tok;
 	    # Progress bar
@@ -233,6 +235,9 @@ sub next_term_prob {
 		$progress->report ("\%B (".sprintf("% 10f",$prob).") \%L $term_name\n", $n),
 		color('reset')
 		if $self->verbose;
+	}
+	if ($total_prob < 1 - 1e20) {   # allow for precision error
+	    $term_prob{""} = 1 - $total_prob;
 	}
     }
     return %term_prob;
