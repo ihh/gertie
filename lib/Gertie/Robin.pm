@@ -178,10 +178,6 @@ GAMELOOP:
     while (1) {
 
 	# Round Robin: each turn (terminal) is offered to one agent, visiting all agents cyclically.
-	# Note that these rules distort the probabilistic structure of the grammar, encouraging cyclic sequences.
-	# The structure would not be distorted if we sampled the next agent randomly.
-	# TODO: add option to sample next agent randomly, then advance the turn counter until it's that agent's turn.
-
 	# One "round" = a visit to each of N agents, in order = N "turns"
 	my $turn = $self->current_turn;
 	my $round = $self->current_round;
@@ -275,12 +271,12 @@ sub record_player_turn {
 sub random_choice {
     my ($self) = @_;
     my $next_term;
-    my $agent = $self->current_agent;
-
-    my ($term_prob_hashref, $next_term_listref) = $self->next_term_prob;
-    if (@$next_term_listref) {
-	my @next_prob = map ($term_prob_hashref->{$_}, @$next_term_listref);
-	$next_term = Gertie::sample (\@next_prob, $next_term_listref);
+    if (rand() < $self->inside->continue_prob) {  # allow agents to randomly skip turns
+	my ($term_prob_hashref, $next_term_listref) = $self->next_term_prob;
+	if (@$next_term_listref) {
+	    my @next_prob = map ($term_prob_hashref->{$_}, @$next_term_listref);
+	    $next_term = Gertie::sample (\@next_prob, $next_term_listref);
+	}
     }
     return $next_term;
 }
@@ -512,6 +508,8 @@ REDISPLAY:
     my @options = @$t_list;
 
     confess "Player cannot move at turn ", $self->current_turn unless @options;
+    my $move_prob = 0;
+    grep ($move_prob += $_, values %$tp_hash);
 
 # Commented-out line chooses automatically if there is only one choice
 #    return $options[0] if @options == 1;
@@ -536,6 +534,11 @@ REDISPLAY:
 	# Create menu callbacks
 	my @item_callback = map ([$choice_color . $_, sub { $choice = shift() + $min; print "\n" }],
 				 @menu);
+
+	if ($move_prob < $self->inside->continue_prob) {
+	    push @item_callback,
+	    [$choice_color . "(skip turn)", sub { $choice = -1 }];
+	}
 
 	if ($max < $#options) {
 	    push @item_callback,
@@ -641,7 +644,7 @@ REDISPLAY:
 	# act on user choice
 	&{$item_callback[$n]->[1]} ($n);
     }
-    return $options[$choice];
+    return $choice < 0 ? undef : $options[$choice];
 }
 
 sub menu_text {
