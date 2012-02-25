@@ -118,5 +118,32 @@ test_training ('(f,g)=(1,1);(pa,pb,pc,pd)=(1,1,1,1);s->x*;x*->x x*(f)|end(g);x->
 	       "parametric null model");
 
 
+my $g4t = <<END;
+(f, g) = (0.7692, 0.2308);
+(pad, pbc) = (0.8, 0.2);
+(pa, pd) = (0.625, 0.375);
+(pb, pc) = (0.5, 0.5);
+s -> x*;
+x -> x1 (0.5);
+x -> x2 (0.5);
+x* -> end (g);
+x* -> x x* (f);
+x1 -> a (pad*pa);
+x1 -> b (pbc*pb);
+x1 -> c (pbc*pc);
+x1 -> d (pad*pd);
+x2 -> a (pad*pa);
+x2 -> b (pbc*pb);
+x2 -> c (pbc*pc);
+x2 -> d (pad*pd);
+END
+test_training ('(f,g)=(1,1);(pad,pbc)=(1,1);(pa,pd)=(1,1);(pb,pc)=(1,1);s->x*;x*->x x*(f)|end(g);x->x1|x2;x1->a(pad*pa)|b(pbc*pb)|c(pbc*pc)|d(pad*pd);x2->a(pad*pa)|b(pbc*pb)|c(pbc*pc)|d(pad*pd)',
+	       $g4t,
+	       [[qw(a a a a)], [qw(a b c d)], [qw(d d)]],
+	       [3, 10, 3, 5, 5, 2.5, .5, .5, 1.5, 2.5, .5, .5, 1.5],
+	       "parametric null model");
+
+
+
 
 dump_log();

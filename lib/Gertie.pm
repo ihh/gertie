@@ -17,6 +17,7 @@ use Symbol qw(gensym);
 
 # specific imports
 use Graph::Directed;
+use Math::Symbolic;
 
 # constructor
 sub new_gertie {
@@ -25,7 +26,7 @@ sub new_gertie {
     my $quant_regex = '[\?\*\+]|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\}';
     my $quantified_sym_regex = "$sym_regex(|$quant_regex)";
     my $self = AutoHash->new ( 'end' => "end",
-			       'rule' => [],  # fields are (lhs,rhs1,rhs2,prob,rule_index,prob_param)
+			       'rule' => [],  # fields are (lhs,rhs1,rhs2,prob,rule_index,prob_func)
 			       'deferred_rule' => [],
 			       'rule_index_by_name' => {},
 			       'pgroups' => [],
@@ -43,7 +44,7 @@ sub new_gertie {
 			       'sym_with_quant_regex' => $quantified_sym_regex,
 			       'lhs_regex' => $quantified_sym_regex,
 			       'rhs_regex' => $quantified_sym_regex,
-			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)|\(\s*[a-z]\w*\s*\)',
+			       'prob_regex' => '[\d\.]*|\([^\|;]*\)',
 			       'param_regex' => '[a-z]\w*',
 			       'num_regex' => '[\d\.]*',
 			       'quantifier_regex' => $quant_regex,
@@ -184,22 +185,26 @@ sub add_rule {
     $rhs2 = $self->end unless defined($rhs2) && length($rhs2);
     $prob = 1 unless defined($prob) && length($prob);
     $prob =~ s/^\(\s*(.*?)\s*\)$/$1/;  # remove brackets
-    my $prob_is_param = ($prob =~ /^[a-z]/);
-    confess "Parameter $prob undefined" if $prob_is_param && !defined($self->param->{$prob});
+    my $prob_is_func = ($prob =~ /^[a-z]/);
+    if ($prob_is_func) {
+	my $f = Math::Symbolic::parse_from_string ($prob);
+	my @undef_param = grep (!defined($self->param->{$_}), $f->signature);
+	confess "Expression ($prob_is_func) has undefined parameters (@undef_param)" if @undef_param;
+    }
     warn "Adding Chomsky rule: $lhs -> $rhs1 $rhs2 ($prob)" if $self->verbose > 10;
     # Check the rule is valid
     confess "Empty rule" unless defined($rhs1) && length($rhs1);
     confess "Transformation of 'end'" if $lhs eq $self->end;  # No rules starting with 'end'
     $self->{'start'} = $lhs unless defined $self->{'start'};  # First named nonterminal is start
-    return if !$prob_is_param && $prob == 0;  # Don't bother tracking zero-weight rules
-    confess "Negative probability" if !$prob_is_param && $prob < 0;  # Rule weights are nonnegative
+    return if !$prob_is_func && $prob == 0;  # Don't bother tracking zero-weight rules
+    confess "Negative probability" if !$prob_is_func && $prob < 0;  # Rule weights are nonnegative
     # Be idempotent
     my $rule_index;
     if (exists $self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2}) {
 	$rule_index = $self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2};
 	my $old_prob = $self->get_rule_prob ($rule_index);
-	my $old_prob_is_param = ($old_prob =~ /^[a-z]/);
-	unless (($prob_is_param || $old_prob_is_param) ? ($old_prob eq $prob) : ($old_prob == $prob)) {
+	my $old_prob_is_func = ($old_prob =~ /^[a-z]/);
+	unless (($prob_is_func || $old_prob_is_func) ? ($old_prob eq $prob) : ($old_prob == $prob)) {
 	    warn "Ignoring attempt to change probability of rule ($lhs->$rhs1 $rhs2) from $old_prob to $prob\n" if $self->verbose;
 	}
 	return;
@@ -208,7 +213,7 @@ sub add_rule {
     }
     # Record the rule
     $self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2} = $rule_index;
-    $self->rule->[$rule_index] = [$lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_is_param ? $prob : undef];
+    $self->rule->[$rule_index] = [$lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_is_func ? $prob : undef];
     $self->add_symbols ($lhs, $rhs1, $rhs2);
 }
 
@@ -314,7 +319,7 @@ sub add_deferred_rules {
 # get_rule_prob: get a rule probability
 sub get_rule_prob {
     my ($self, $rule_index) = @_;
-    return $self->rule->[$rule_index]->[3];  # fields of rule are (lhs,rhs1,rhs2,prob,rule_index,prob_param)
+    return $self->rule->[$rule_index]->[3];  # fields of rule are (lhs,rhs1,rhs2,prob,rule_index,prob_func)
 }
 
 # set_rule_prob: change a rule probability
@@ -323,7 +328,7 @@ sub get_rule_prob {
 sub set_rule_prob {
     my ($self, $rule_index, $new_prob) = @_;
     confess "Probability undefined" unless defined $new_prob;
-    $self->rule->[$rule_index]->[3] = $new_prob;  # fields of rule are (lhs,rhs1,rhs2,prob,rule_index,prob_param)
+    $self->rule->[$rule_index]->[3] = $new_prob;  # fields of rule are (lhs,rhs1,rhs2,prob,rule_index,prob_func)
 }
 
 # Index: convert symbols & rules to integers
@@ -352,18 +357,18 @@ sub normalize_rule_probs {
     # Evaluate rule probabilities & normalize rules
     my %outgoing_prob_by_name;
     for my $rule (@{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_param) = @$rule;
-	if (defined $prob_param) {
-	    $prob = $self->param->{$prob_param};
-	    @$rule = ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_param);
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_func) = @$rule;
+	if (defined $prob_func) {
+	    $prob = Math::Symbolic::parse_from_string($prob_func)->value(%{$self->param});
+	    @$rule = ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_func);
 	}
 	$outgoing_prob_by_name{$lhs} += $prob;
     }
 
     for my $rule (@{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_param) = @$rule;
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_func) = @$rule;
 	$prob /= $outgoing_prob_by_name{$lhs} if $outgoing_prob_by_name{$lhs} != 0;
-	@$rule = ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_param);
+	@$rule = ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_func);
     }
 
     # quick-index rules by rhs symbols
@@ -535,13 +540,13 @@ sub index_rules {
     $self->{'rule_by_rhs1'} = {};
     $self->{'rule_by_rhs2'} = {};
     for my $rule (@{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_param) = @$rule;
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_func) = @$rule;
 	my ($lhs_id, $rhs1_id, $rhs2_id) = map ($self->sym_id->{$_}, $lhs, $rhs1, $rhs2);
-	push @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}}, [$rhs2_id, $prob, $rule_index, $prob_param];
+	push @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}}, [$rhs2_id, $prob, $rule_index, $prob_func];
 	push @{$self->rule_by_lhs->{$lhs_id}}, $rule_index;
 	push @{$self->rule_by_rhs1->{$rhs1_id}}, $rule_index;
 	push @{$self->rule_by_rhs2->{$rhs2_id}}, $rule_index;
-	push @{$self->tokenized_rule}, [$lhs_id, $rhs1_id, $rhs2_id, $prob, $prob_param];
+	push @{$self->tokenized_rule}, [$lhs_id, $rhs1_id, $rhs2_id, $prob, $prob_func];
 	warn "Indexed rule: $lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
     }
 }
@@ -583,15 +588,15 @@ sub to_string {
 	    my @rule = sort {$self->sym_name->[$a->[0]] cmp $self->sym_name->[$b->[0]]}
 	    @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}};
 	    for my $rule (@rule) {
-		my ($rhs2_id, $rule_prob, $rule_index, $prob_param) = @$rule;
+		my ($rhs2_id, $rule_prob, $rule_index, $prob_func) = @$rule;
 		my $rhs2 = $self->sym_name->[$rhs2_id];
 		my $rhs = " $rhs1 $rhs2";
 		$rhs =~ s/ @{[$self->end]}//g;
 		$rhs =~ s/\s+/ /;
 		$rhs =~ s/^\s*//;
 		$rhs = $self->end unless length $rhs;
-		$rule_prob = defined($prob_param)
-		    ? " ($prob_param)"
+		$rule_prob = defined($prob_func)
+		    ? " ($prob_func)"
 		    : ($rule_prob == 1 ? "" : sprintf(" ($fmt)", $rule_prob));
 		push @text, "$lhs -> $rhs$rule_prob;\n";
 	    }
@@ -708,7 +713,7 @@ sub train {
 	my $prob = $self->single_EM_iteration_likelihood ($training_seq_list);
 	warn "EM iteration \#$iter: Probability $prob", defined($last_prob) ? (" (previous $last_prob") : ()
 	    if $self->verbose;
-	last if defined($last_prob) && $prob < $last_prob;
+	last if defined($last_prob) && $prob <= $last_prob;
 	$last_prob = $prob;
     }
 }
@@ -741,8 +746,8 @@ sub counts_to_string {
 	push @text, "(" . join (", ", @$pgroup) . ") = (" . join (", ", map ($self->param->{$_}, @$pgroup)) . ");\n";
     }
     for my $rule (@{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $count, $rule_index, $prob_param) = @$rule;
-	push @text, "$lhs -> $rhs1 $rhs2 ($count);  // Rule $rule_index\n" unless defined $prob_param;
+	my ($lhs, $rhs1, $rhs2, $count, $rule_index, $prob_func) = @$rule;
+	push @text, "$lhs -> $rhs1 $rhs2 ($count);  // Rule $rule_index\n" unless defined $prob_func;
     }
     return join ("", @text);
 }
@@ -753,10 +758,21 @@ sub update_rule_probs {
     confess "|rule_count|=", @$rule_count+0, " |rule|=", @{$self->rule}+0 unless @$rule_count == @{$self->rule};
     my %param_count = map (($_ => 0), keys %{$self->param});
     for my $rule_index (0..$#{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $prob, $prob_param) = @{$self->tokenized_rule->[$rule_index]};
+	my ($lhs, $rhs1, $rhs2, $prob, $prob_func) = @{$self->tokenized_rule->[$rule_index]};
 	my $rc = $rule_count->[$rule_index];
-	if (defined $prob_param) {
-	    $param_count{$prob_param} += $rc;
+	if (defined $prob_func) {
+	    my $f = Math::Symbolic::parse_from_string ($prob_func);
+	    my $fval = $f->value (%{$self->param});
+	    if ($fval != 0) {
+		for my $param ($f->signature) {
+		    my $pval = $self->param->{$param};
+		    next if $pval == 0;
+		    my $df_dp = Math::Symbolic::Derivative::partial_derivative ($f, $param);
+		    my $df_dp_val = $df_dp->value (%{$self->param});
+		    my $dlogf_dlogp_val = $df_dp_val * $pval / $fval;
+		    $param_count{$param} += $rc * $dlogf_dlogp_val;
+		}
+	    }
 	} else {
 	    $self->set_rule_prob ($rule_index, $rc);
 	}
