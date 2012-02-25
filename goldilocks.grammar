@@ -5,7 +5,7 @@
 
 // Now the structure
 story ->
-introduction@c goldilocks@p? goldilocks_main@c
+introduction@c goldilocks@p goldilocks_main@c
 | introduction@c punkilocks@p punkilocks_main@c;
 
 introduction@c ->
