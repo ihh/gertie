@@ -52,6 +52,9 @@ sub test_training {
     test ($gs, $g_target, "$desc (trained)");
 }
 
+# In the trained grammar below:
+# 0.2308 = 3/13 (to 4 significant digits)
+# 0.7692 = 10/13 (to 4 significant digits)
 my $g1t = <<END;
 s -> x*;
 x -> a (0.5);
