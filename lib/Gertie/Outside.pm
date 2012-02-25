@@ -35,10 +35,13 @@ use Term::ANSIColor;
 # P(sequence) = p(0,length,start)
 
 # Outside matrix
-# r(i,j,sym) = P(seq[0]..seq[i] . sym . seq[j-1]..seq[length-1] | start)
-#  = probability that derivation stopping at sym will generate everything except subseq i..j-1
+# r(i,j,sym) = P(seq[0]..seq[i] . sym . seq[j-1]..seq[length-1] | start) * deg(i,j,sym)
+#  = expected number of times that derivation stopping at sym will generate everything except subseq i..j-1
 #  = sum_{symA,symB} P(symA->symB sym) sum_{k=0}^i r(k,j,symA) p(k,i,symB)
 #    + sum_{symA,symC} P(symA->sym symC) sum_{k=j}^{length} r(i,k,symA) p(j,k,symC)
+
+# deg(i,j,sym) = expected number of times that a parse tree contains sym at (i,j)
+# Since the grammar is cyclic, deg(i,j,sym)=1 unless i=j and sym can be generated multiple ways
 
 # r(0,length,start) = 1
 
@@ -86,9 +89,9 @@ sub to_string {
     my $len = $self->len;
     my @out;
     my @sym = @{$self->gertie->sym_name};
-    for (my $i = 0; $i < $len; ++$i) {
+    for (my $i = 0; $i <= $len; ++$i) {
 
-	for (my $j = $len; $j > $i; --$j) {
+	for (my $j = $len; $j >= $i; --$j) {
 	    push @out, "Outside ($i,$j):";
 	    for my $sym_id (0..$#sym) {
 		my $rval = $self->get_r ($i, $j, $sym_id);
@@ -116,10 +119,9 @@ sub fill {
     my $r = $self->r;
     $self->set_r (0, $len, $gertie->start_id, 1);
 
-    my @outside_sym = reverse (grep ($_ != $gertie->end_id, 0 .. $n_symbols - 1));
     for (my $j = $len; $j > 0; --$j) {
 	for (my $i = 0; $i <= $j; ++$i) {
-	    for my $sym (@outside_sym) {
+	    for (my $sym = $n_symbols - 1; $sym >= 0; --$sym) {
 
 		# r(i,j,sym) = sum_{symA,symB} P(symA->symB sym) sum_{k=0}^{i-1} r(k,j,symA) p(k,i,symB)
 		#              + sum_{symA,symC} P(symA->sym symC) sum_{k=j+1}^{length} r(i,k,symA) p(j,k,symC)
@@ -132,8 +134,7 @@ sub fill {
 		}
 		for my $rule_index (@{$gertie->rule_by_rhs1->{$sym}}) {
 		    my ($lhs, $rhs1, $rhs2, $rule_prob) = @{$rule->[$rule_index]};
-		    my $dup = ($i == $j && $rhs2 == $sym);
-		    for (my $k = $dup ? $j+1 : $j; $k <= $len; ++$k) {
+		    for (my $k = $j; $k <= $len; ++$k) {
 			$rval += $rule_prob * $self->get_r($i,$k,$lhs) * $inside->get_p($j,$k,$rhs2);
 		    }
 		}

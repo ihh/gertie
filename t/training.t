@@ -34,6 +34,8 @@ my $outside = Gertie::Outside->new_Outside ($inside);
 #warn $outside->to_string;
 my $outside_target = <<END;
 Outside (0,1): d=>1 b=>1 a=>1
+Outside (0,0):
+Outside (1,1): end=>3 c=>1
 END
 test ($outside->to_string, $outside_target, "DP matrix");
 
