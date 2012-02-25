@@ -669,19 +669,26 @@ sub get_prob_and_rule_counts {
     return ($all_prob, \@rule_count);
 }
 
+# subroutine to print "raw" counts
+sub counts_to_string {
+    my ($self) = @_;
+    my @text;
+    for my $rule (@{$self->rule}) {
+	my ($lhs, $rhs1, $rhs2, $count, $rule_index) = @$rule;
+	push @text, "$lhs -> $rhs1 $rhs2 ($count);  // Rule $rule_index\n";
+    }
+    return join ("", @text);
+}
+
 # update rule probabilities from a set of Inside-Outside counts
 sub update_rule_probs {
     my ($self, $rule_count) = @_;
     confess "|rule_count|=", @$rule_count+0, " |rule|=", @{$self->rule}+0 unless @$rule_count == @{$self->rule};
-    my %count_by_lhs;
     for my $rule_index (0..$#{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob) = @{$self->tokenized_rule->[$rule_index]};
-	$count_by_lhs{$lhs} += $rule_count->[$rule_index];
+	$self->set_rule_prob ($rule_index, $rule_count->[$rule_index]);
     }
-    for my $rule_index (0..$#{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $prob) = @{$self->tokenized_rule->[$rule_index]};
-	$self->set_rule_prob ($rule_index, $rule_count->[$rule_index] / $count_by_lhs{$lhs});
-    }
+    warn $self->counts_to_string if $self->verbose;
     $self->update_indexed_rule_probs;  # update any caches that contain probabilities
 }
 

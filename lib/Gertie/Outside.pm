@@ -114,21 +114,18 @@ sub fill {
     my $r = $self->r;
     $self->set_r (0, $len, $gertie->start_id, 1);
 
+    my @outside_sym = reverse (grep ($_ != $gertie->end_id, 0 .. $n_symbols - 1));
     for (my $j = $len; $j >= 0; --$j) {
 	for (my $i = 0; $i <= $j; ++$i) {
-	    for (my $sym = $n_symbols - 1; $sym >= 0; --$sym) {
+	    for my $sym (@outside_sym) {
 
 		# r(i,j,sym) = sum_{symA,symB} P(symA->symB sym) sum_{k=0}^i r(k,j,symA) p(k,i,symB)
 		#              + sum_{symA,symC} P(symA->sym symC) sum_{k=j}^{length} r(i,k,symA) p(j,k,symC)
 		my $rval = $self->get_r ($i, $j, $sym);
-		my %seen;
 		for my $rule_index (@{$gertie->rule_by_rhs2->{$sym}}) {
 		    my ($lhs, $rhs1, $rhs2, $rule_prob) = @{$rule->[$rule_index]};
 		    for (my $k = 0; $k <= $i; ++$k) {
 			$rval += $rule_prob * $self->get_r($k,$j,$lhs) * $inside->get_p($k,$i,$rhs1);
-
-			my ($l,$r1,$r2)=map($gertie->sym_name->[$_], $lhs,$rhs1,$rhs2);
-			warn "i=$i j=$j k=$k sym=",$gertie->sym_name->[$sym]," rval=$rval ($l->$r1 $r2) prob=$rule_prob r($k,$j,$l)=",$self->get_r($k,$j,$lhs)," p($k,$i,$r1)=",$inside->get_p($k,$i,$rhs1) if $sym==$gertie->end_id && $rval > 0;
 		    }
 		}
 		for my $rule_index (@{$gertie->rule_by_rhs1->{$sym}}) {
@@ -136,9 +133,6 @@ sub fill {
 		    my $avoid_dup = ($rhs1 == $rhs2 && $i == $j);
 		    for (my $k = ($avoid_dup ? $j+1 : $j); $k <= $len; ++$k) {
 			$rval += $rule_prob * $self->get_r($i,$k,$lhs) * $inside->get_p($j,$k,$rhs2);
-
-			my ($l,$r1,$r2)=map($gertie->sym_name->[$_], $lhs,$rhs1,$rhs2);
-			warn "i=$i j=$j sym=",$gertie->sym_name->[$sym]," rval=$rval ($l->$r1 $r2)" if $sym==$gertie->end_id && $rval > 0;
 		    }
 		}
 		$self->set_r ($i, $j, $sym, $rval);
@@ -146,7 +140,6 @@ sub fill {
 		# Accumulate counts
 		for my $rule_index (@{$gertie->rule_by_lhs->{$sym}}) {
 		    for (my $k = $i; $k <= $j; ++$k) {
-#			warn "i=$i j=$j k=$k sym=$sym rule_index=$rule_index";
 			$rule_count->[$rule_index] += $self->post_rule_prob ($i, $j, $k, $rule_index);
 		    }
 		}
