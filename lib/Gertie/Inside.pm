@@ -236,7 +236,7 @@ sub next_term_prob {
 		color('reset')
 		if $self->verbose;
 	}
-	if ($total_prob < 1 - 1e20) {   # allow for precision error
+	if (keys(%term_prob) && $total_prob < 1 - 1e-10) {   # allow for precision error
 	    $term_prob{""} = 1 - $total_prob;
 	}
     }

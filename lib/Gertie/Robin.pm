@@ -22,6 +22,7 @@ sub new_robin {
 			       'seq' => [],
 			       'tokseq' => [],
 			       'seq_turn' => [],
+			       'skipped_agents' => {},  # stores which agents have skipped a turn
 
 			       'inside' => undef,
 
@@ -33,7 +34,7 @@ sub new_robin {
 			       'max_rounds' => undef,
 			       'current_turn' => undef,
 
-			       'options_per_page' => 3,
+			       'options_per_page' => 10,
 
 			       'trace_filename' => undef,
 			       'trace_fh' => undef,
@@ -188,6 +189,7 @@ GAMELOOP:
 	    print $log_color, "Turn: ", $turn, $reset_color_newline;
 	    print $log_color, "Round: ", $round + 1, $reset_color_newline;
 	    print $log_color, "Agent: $agent", $reset_color_newline;
+	    print $log_color, "Skipped: ", join(" ",$self->current_skipped_agents), $reset_color_newline;
 	    print $log_color, "Player turns: ", $self->player_turns, $reset_color_newline;
 	    print $log_color, "Sequence: (@{$self->seq})", $reset_color_newline;
 	    print $log_color, "Inside matrix:\n", $self->inside->to_string, $reset_color_newline if $self->verbose > 9;
@@ -201,7 +203,7 @@ GAMELOOP:
 
 	# get next terminal
 	my $next_term;
-	if ($self->is_players_turn) {
+	if ($self->player_can_move) {
 	    $next_term = $self->player_choice;
 	} else {
 	    $next_term = $self->agent_choice;
@@ -239,9 +241,15 @@ sub play_continues {
 }
 
 # Test to see if it's the player's move
-sub is_players_turn {
+sub player_can_move {
     my ($self) = @_;
-    return 0 unless $self->current_agent eq $self->gertie->player_agent;
+    return $self->agent_can_move ($self->gertie->player_agent);
+}
+
+sub agent_can_move {
+    my ($self, $agent) = @_;
+    $agent = $self->current_agent unless defined $agent;
+    return 0 unless $self->current_agent eq $agent;
     my ($tp_hash, $t_list) = $self->next_term_prob;
     return grep (length($_), @$t_list);
 }
@@ -249,7 +257,7 @@ sub is_players_turn {
 # Wrapper to advance to the next player move
 sub advance_to_next_player_turn {
     my ($self) = @_;
-    while (!$self->is_players_turn) {
+    while (!$self->player_can_move) {
 	$self->record_turn ($self->agent_choice);
     }
 }
@@ -258,10 +266,10 @@ sub advance_to_next_player_turn {
 sub record_player_turn {
     my ($self, $next_term) = @_;
     if (defined $next_term) {
-	confess "Not player's turn" unless $self->is_players_turn;
+	confess "Not player's turn" unless $self->player_can_move;
 	$self->record_turn ($next_term);
     } else {
-	confess "Can't skip player's turn" if $self->is_players_turn;
+	confess "Can't skip player's turn" if $self->player_can_move;
     }
     $self->advance_to_next_player_turn;
 }
@@ -308,17 +316,20 @@ sub current_round {
 # Accessor to count the number of turns the player has had
 sub player_turns {
     my ($self) = @_;
-    return $self->turns->{$self->gertie->player_agent};
+    return @{$self->turns->{$self->gertie->player_agent}} + 0;
 }
 
 # Method to advance the turn counter and (optionally) record a turn
 sub record_turn {
     my ($self, $next_term) = @_;
+    my $agent = $self->current_agent;
+    my $agent_could_move = $self->agent_can_move;
     $self->flush_next_term_prob_cache;
+    my @skipped_agents;
     if (defined $next_term) {
-	my $agent = $self->gertie->term_owner_by_name->{$next_term};
+	my $next_term_agent = $self->gertie->term_owner_by_name->{$next_term};
+	confess "It is $agent's turn, not $next_term_agent's" unless $agent eq $next_term_agent;
 	my $trace_fh = $self->trace_fh;
-	++$self->turns->{$agent};
 	push @{$self->seq}, $next_term;
 	push @{$self->tokseq}, $self->gertie->sym_id->{$next_term};
 	push @{$self->seq_turn}, $self->current_turn;
@@ -326,25 +337,48 @@ sub record_turn {
 
 	# update Inside matrix
 	$self->inside->push_sym ($next_term);
+    } else {
+	@skipped_agents = ($self->current_skipped_agents, $self->current_agent);
     }
+
+    # log that we moved on this turn (including "skip turn" moves)
+    push @{$self->turns->{$agent}}, $self->current_turn if $agent_could_move;
+    warn "skipped" if !defined($next_term) && $agent_could_move;
 
     # count
     ++$self->{'current_turn'};
+
+    # store skipped_prob
+    $self->skipped_agents->{$self->current_turn} = \@skipped_agents;
+}
+
+sub current_skipped_agents {
+    my ($self) = @_;
+    return @{$self->skipped_agents->{$self->current_turn}};
 }
 
 # Method to undo a turn, winding back the turn counter
 sub undo_turn {
     my ($self, $agent) = @_;
-    $self->flush_next_term_prob_cache;
-    my $trace_fh = $self->trace_fh;
-    while (@{$self->seq}) {
-	my $undone_term = pop @{$self->seq};
-	my $undone_term_id = pop @{$self->tokseq};
-	$self->inside->pop_tok();
-	$self->current_turn (pop @{$self->seq_turn});
-	--$self->turns->{$self->current_agent};
-	if (defined $trace_fh) { print $trace_fh "POP $undone_term\n" }
-	last if !defined($agent) || $agent eq $self->current_agent;
+    while (@{$self->turns->{$agent}}) {
+	$self->flush_next_term_prob_cache;
+	my $last_turn = $self->turns->{$agent}->[$#{$self->turns->{$agent}}];
+	my $trace_fh = $self->trace_fh;
+	# undo any actual moves
+	while (@{$self->seq_turn} && $self->seq_turn->[$#{$self->seq_turn}] >= $last_turn) {
+	    my $undone_term = pop @{$self->seq};
+	    my $undone_term_id = pop @{$self->tokseq};
+	    pop @{$self->turns->{$self->current_agent}};
+	    delete $self->skipped_agents->{$self->current_turn};
+	    $self->inside->pop_tok();
+	    $self->current_turn (pop @{$self->seq_turn});
+	    if (defined $trace_fh) { print $trace_fh "POP $undone_term\n" }
+	}
+	# reset the turn counter to the last move
+	$self->current_turn ($last_turn);
+	confess unless $self->current_agent eq $agent;
+	# keep going unless we can actually move
+	last if $self->agent_can_move ($agent);
     }
 }
 
@@ -355,8 +389,9 @@ sub reset {
     $self->tokseq ([]);
     $self->seq_turn ([]);
     $self->inside ($self->gertie->prefix_Inside ([], @{$self->inside_args}));  # initialize empty Inside matrix
-    $self->{'turns'} = { map (($_ => 0), @{$self->gertie->agents}) };
+    $self->{'turns'} = { map (($_ => []), @{$self->gertie->agents}) };
     $self->current_turn(0);
+    $self->skipped_agents({0=>[]});
 }
 
 # Default 'error' handler for save/restore dialogs
@@ -380,7 +415,9 @@ sub load_game {
     $self->reset;
     while (<FILE>) {
 	my ($turn, $term) = split;
-	$self->current_turn ($turn);
+	while ($self->current_turn < $turn) {
+	    $self->record_turn (undef);
+	}
 	$self->record_turn ($term);
     }
     close FILE;
@@ -483,12 +520,14 @@ sub next_term_prob {
     if (defined($self->{'term_prob_hashref'}) && defined($self->{'term_listref'})) {
 	return ($self->term_prob_hashref, $self->term_listref);
     }
-    my %term_prob_hash = $self->inside->next_term_prob ($self->current_agent);
-    my @term_list = sort { $term_prob_hash{$b} <=> $term_prob_hash{$a}
-			   || $a cmp $b } keys %term_prob_hash;
+    my %term_prob_hash = $self->inside->next_term_prob ($self->current_agent, $self->current_skipped_agents);
+    my @candidate_term_list = grep ($_ eq "" || $self->gertie->term_owner_by_name->{$_} eq $self->current_agent,
+				    keys %term_prob_hash);
+    my @sorted_term_list = sort { $term_prob_hash{$b} <=> $term_prob_hash{$a}
+				  || $a cmp $b } @candidate_term_list;
     $self->{'term_prob_hashref'} = \%term_prob_hash;
-    $self->{'term_listref'} = \@term_list;
-    return (\%term_prob_hash, \@term_list);
+    $self->{'term_listref'} = \@sorted_term_list;
+    return (\%term_prob_hash, \@sorted_term_list);
 }
 
 sub flush_next_term_prob_cache {
@@ -502,7 +541,7 @@ sub player_choice {
     my ($self) = @_;
 
 REDISPLAY:
-    confess "Player cannot move at turn ", $self->current_turn unless $self->is_players_turn;
+    confess "Player cannot move at turn ", $self->current_turn unless $self->player_can_move;
 
     my ($tp_hash, $t_list) = $self->next_term_prob;
     my @options = @$t_list;
@@ -586,11 +625,14 @@ REDISPLAY:
 		      $self->reset_color, "\n"),
 		     0..$#item_callback)
 		if $display_choices;
+PROMPT:
 	    print
 		$meta_color, "\nEnter your choice: ", $input_color if $display_prompt;
 	    $display_prompt = $display_choices = 0;
 
 	    $input = <>;
+	    if (!defined $input) { $display_prompt = 1; goto PROMPT }
+
 	    chomp $input;
 	    $input =~ s/^\s*//;
 	    $input =~ s/\s*$//;

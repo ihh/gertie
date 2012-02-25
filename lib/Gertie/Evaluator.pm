@@ -24,6 +24,7 @@ sub evaluate {
 	    $val = "" unless defined $val;
 	    $_ = $prefix . $val . $suffix;
 	}
+#        while (/\$\$(\w+)/g) {warn$1}
         s/\$\$(\w+)/$attr{$1}/g;
 	s/\\\n//g;
 	push @result, $_;
