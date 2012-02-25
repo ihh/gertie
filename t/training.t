@@ -112,7 +112,7 @@ x2 -> b (pb);
 x2 -> c (pc);
 x2 -> d (pd);
 END
-test_training ('(f,g)=(.5,.5);(pa,pb,pc,pd)=(.25,.25,.25,.25);s->x*;x*->x x*(f)|end(g);x->x1|x2;x1->a(pa)|b(pb)|c(pc)|d(pd);x2->a(pa)|b(pb)|c(pc)|d(pd)',
+test_training ('(f,g)=(1,1);(pa,pb,pc,pd)=(1,1,1,1);s->x*;x*->x x*(f)|end(g);x->x1|x2;x1->a(pa)|b(pb)|c(pc)|d(pd);x2->a(pa)|b(pb)|c(pc)|d(pd)',
 	       $g3t,
 	       [[qw(a a a a)], [qw(a b c d)], [qw(d d)]],
 	       [3, 10, 3, 5, 5, 2.5, .5, .5, 1.5, 2.5, .5, .5, 1.5],
