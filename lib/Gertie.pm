@@ -25,8 +25,11 @@ sub new_gertie {
     my $quant_regex = '[\?\*\+]|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\}';
     my $quantified_sym_regex = "$sym_regex(|$quant_regex)";
     my $self = AutoHash->new ( 'end' => "end",
-			       'rule' => [],
+			       'rule' => [],  # fields are (lhs,rhs1,rhs2,prob,rule_index,prob_param)
+			       'deferred_rule' => [],
 			       'rule_index_by_name' => {},
+			       'pgroups' => [],
+			       'param' => {},
 
 			       'symbol_order' => {},
 			       'symbol_list' => [],
@@ -40,13 +43,16 @@ sub new_gertie {
 			       'sym_with_quant_regex' => $quantified_sym_regex,
 			       'lhs_regex' => $quantified_sym_regex,
 			       'rhs_regex' => $quantified_sym_regex,
-			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)',
+			       'prob_regex' => '[\d\.]*|\(\s*[\d\.]*\s*\)|\(\s*[a-z]\w*\s*\)',
+			       'param_regex' => '[a-z]\w*',
+			       'num_regex' => '[\d\.]*',
 			       'quantifier_regex' => $quant_regex,
 
 			       'inside_class' => 'Gertie::Inside::PerlParser',
 			       'use_c_parser' => 0,
 
 			       'verbose' => 0,
+			       'output_precision' => 10,
 			       @args );
     bless $self, $class;
     $self->add_symbols ($self->end);
@@ -91,6 +97,7 @@ sub parse {
     for my $line (@lines) {
 	$self->parse_line ($line);
     }
+    $self->add_deferred_rules;
 }
 
 sub parse_line {
@@ -105,6 +112,8 @@ sub parse_line {
     my $lhs_regex = $self->lhs_regex;
     my $rhs_regex = $self->rhs_regex;
     my $prob_regex = $self->prob_regex;
+    my $param_regex = $self->param_regex;
+    my $num_regex = $self->num_regex;
 
     if (/^\s*($lhs_regex)\s*\->\s*($rhs_regex)\s*(|$rhs_regex)\s*($prob_regex)\s*;?\s*$/) {  # Transition (A->B) or Chomsky-form rule (A->B C) with optional probability
 	my ($lhs, $lhs_crap, $rhs1, $rhs1_crap, $rhs2, $rhs2_crap, $prob) = ($1, $2, $3, $4, $5, $6, $7);
@@ -112,7 +121,7 @@ sub parse_line {
 			      sub { my ($lhs, $rhs1, $rhs2) = @_;
 				    my ($deferred_rule, $newrhs1, $newrhs2) = $self->process_quantifiers ($rhs1, $rhs2);
 				    $self->add_rule ($lhs, $newrhs1, $newrhs2, $prob);
-				    $self->add_deferred_rules ($deferred_rule) });
+				    push @{$self->deferred_rule}, @$deferred_rule });
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*)\s*($prob_regex)\s*;?\s*$/) {  # Non-Chomsky rule (A->B C D ...) with optional probability
 	my ($lhs, $lhs_crap, $rhs, $rhs1, $rhs_crap, $prob) = ($1, $2, $3, $4, $5, $6);
 	# Convert "A->B C D E" into "A -> B.C.D E;  B.C.D -> B.C D;  B.C -> B C"
@@ -123,7 +132,7 @@ sub parse_line {
 			      sub { my ($lhs, @rhs) = @_;
 				    my ($deferred_rule, @newrhs) = $self->process_quantifiers (@rhs);
 				    $self->add_non_Chomsky_rule ($lhs, \@newrhs, $prob);
-				    $self->add_deferred_rules ($deferred_rule) });
+				    push @{$self->deferred_rule}, @$deferred_rule });
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*\s*($prob_regex)(\s*\|(\s*$rhs_regex)*\s*($prob_regex))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
 	my ($lhs, $lhs_crap, $all_rhs) = ($1, $2, $3);
 	my @rhs = split /\|/, $all_rhs;
@@ -134,6 +143,13 @@ sub parse_line {
 	$symbols =~ s/^\s*(.*?)\s*$/$1/;
 	my @symbols = split /\s+/, $symbols;
 	for my $sym (@symbols) { $self->term_owner_by_name->{$sym} = $owner }
+    } elsif (/^\s*\(\s*($param_regex(\s*,\s*$param_regex)*)\s*\)\s*=\s*\(\s*($num_regex(\s*,\s*$num_regex)*)\s*\)\s*$/) {
+	my ($params, $params_crap, $nums, $nums_crap) = ($1, $2, $3, $4);
+	my @params = split /,/, $params;
+	my @nums = split /,/, $nums;
+	confess "params (@params) and values (@nums) do not match in length" unless @params == @nums;
+	push @{$self->pgroups}, \@params;
+	for my $n (0..$#params) { $self->param->{$params[$n]} = $nums[$n] }
     } else {
 	warn "Unrecognized line: ", $_;
     }
@@ -160,30 +176,39 @@ sub foreach_agent {
     }
 }
 
+# add_rule is the core grammar-building method that adds a new Chomsky-normal form rule,
+# defining new symbols if necessary
 sub add_rule {
     my ($self, $lhs, $rhs1, $rhs2, $prob) = @_;
     # Supply default values
     $rhs2 = $self->end unless defined($rhs2) && length($rhs2);
-    $prob = eval($prob) if defined($prob) && length($prob);
     $prob = 1 unless defined($prob) && length($prob);
-    warn "Adding Chomsky rule: $lhs -> $rhs1 $rhs2" if $self->verbose > 10;
+    $prob =~ s/^\(\s*(.*?)\s*\)$/$1/;  # remove brackets
+    my $prob_is_param = ($prob =~ /^[a-z]/);
+    confess "Parameter $prob undefined" if $prob_is_param && !defined($self->param->{$prob});
+    warn "Adding Chomsky rule: $lhs -> $rhs1 $rhs2 ($prob)" if $self->verbose > 10;
     # Check the rule is valid
     confess "Empty rule" unless defined($rhs1) && length($rhs1);
     confess "Transformation of 'end'" if $lhs eq $self->end;  # No rules starting with 'end'
-    confess "Negative probability" if $prob < 0;  # Rule weights are nonnegative
     $self->{'start'} = $lhs unless defined $self->{'start'};  # First named nonterminal is start
-    return if $prob == 0;  # Don't bother tracking zero-weight rules
+    return if !$prob_is_param && $prob == 0;  # Don't bother tracking zero-weight rules
+    confess "Negative probability" if !$prob_is_param && $prob < 0;  # Rule weights are nonnegative
     # Be idempotent
+    my $rule_index;
     if (exists $self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2}) {
-	my $old_prob = $self->get_rule_prob ($self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2});
-	if ($old_prob != $prob) {
-	    confess "Attempt to change probability of rule ($lhs->$rhs1 $rhs2) from $old_prob to $prob";
+	$rule_index = $self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2};
+	my $old_prob = $self->get_rule_prob ($rule_index);
+	my $old_prob_is_param = ($old_prob =~ /^[a-z]/);
+	unless (($prob_is_param || $old_prob_is_param) ? ($old_prob eq $prob) : ($old_prob == $prob)) {
+	    warn "Ignoring attempt to change probability of rule ($lhs->$rhs1 $rhs2) from $old_prob to $prob\n" if $self->verbose;
 	}
 	return;
+    } else {
+	$rule_index = @{$self->rule};
     }
     # Record the rule
-    $self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2} = @{$self->rule};
-    push @{$self->rule}, [$lhs, $rhs1, $rhs2, $prob, @{$self->rule} + 0];
+    $self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2} = $rule_index;
+    $self->rule->[$rule_index] = [$lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_is_param ? $prob : undef];
     $self->add_symbols ($lhs, $rhs1, $rhs2);
 }
 
@@ -197,6 +222,13 @@ sub add_symbols {
     }
 }
 
+# general, non-Chomsky context-free rules are broken down into Chomsky rules via intermediate nonterminals
+# e.g.
+#   A -> B C D E;
+# becomes
+#      A -> B.C.D  E;
+#  B.C.D -> B.C  D;
+#    B.C -> B  C;
 sub add_non_Chomsky_rule {
     my ($self, $lhs, $rhs_listref, $prob) = @_;
     $prob = 1 unless defined $prob;
@@ -218,10 +250,12 @@ sub add_non_Chomsky_rule {
     }
 }
 
+# Perl regexp-style quantifiers get broken down into non-Chomsky rules
 sub process_quantifiers {
     my ($self, @sym) = @_;
     my $sym_regex = $self->sym_regex;
     # all the nonsense with @deferred_rule is so that we don't introduce a spurious start nonterminal
+    # ...also so we give the input file a chance to define its own probabilities, parameterizations etc.
     my (@sym_ret, @deferred_rule);
     for my $sym (@sym) {
 	$sym =~ s/\{(\d+)\}$/\{$1,$1\}/;  # Convert X{N} into X{N,N}
@@ -265,8 +299,8 @@ sub process_quantifiers {
 }
 
 sub add_deferred_rules {
-    my ($self, $deferred_rule_listref) = @_;
-    for my $rule (@$deferred_rule_listref) {
+    my ($self) = @_;
+    for my $rule (@{$self->deferred_rule}) {
 	my ($prob, $deflhs, @defrhs) = @$rule;
 	if (@defrhs <= 2) {
 	    $self->add_rule ($deflhs, @defrhs[0,1], $prob);
@@ -274,20 +308,22 @@ sub add_deferred_rules {
 	    $self->add_non_Chomsky_rule ($deflhs, \@defrhs, $prob);
 	}
     }
+    delete $self->{'deferred_rule'};
 }
 
-# get_rule_prob: get a rule probability.
+# get_rule_prob: get a rule probability
 sub get_rule_prob {
     my ($self, $rule_index) = @_;
-    return $self->rule->[$rule_index]->[3];  # fields are (lhs,rhs1,rhs2,prob)
+    return $self->rule->[$rule_index]->[3];  # fields of rule are (lhs,rhs1,rhs2,prob,rule_index,prob_param)
 }
 
-# set_rule_prob: change a rule probability.
+# set_rule_prob: change a rule probability
+# Used internally by the EM algorithm. Do not use!
 # Call index() after this method, to update all caches
 sub set_rule_prob {
     my ($self, $rule_index, $new_prob) = @_;
     confess "Probability undefined" unless defined $new_prob;
-    $self->rule->[$rule_index]->[3] = $new_prob;  # fields are (lhs,rhs1,rhs2,prob)
+    $self->rule->[$rule_index]->[3] = $new_prob;  # fields of rule are (lhs,rhs1,rhs2,prob,rule_index,prob_param)
 }
 
 # Index: convert symbols & rules to integers
@@ -300,17 +336,34 @@ sub index {
 sub normalize_rule_probs {
     my ($self) = @_;
 
-    # Normalize rules
+    # Normalize pgroups
+    for my $pgroup (@{$self->pgroups}) {
+	my $norm = 0;
+	for my $param (@$pgroup) {
+	    $norm += $self->param->{$param};
+	}
+	if ($norm != 0) {
+	    for my $param (@$pgroup) {
+		$self->param->{$param} /= $norm;
+	    }
+	}
+    }
+
+    # Evaluate rule probabilities & normalize rules
     my %outgoing_prob_by_name;
     for my $rule (@{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_param) = @$rule;
+	if (defined $prob_param) {
+	    $prob = $self->param->{$prob_param};
+	    @$rule = ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_param);
+	}
 	$outgoing_prob_by_name{$lhs} += $prob;
     }
 
     for my $rule (@{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_param) = @$rule;
 	$prob /= $outgoing_prob_by_name{$lhs} if $outgoing_prob_by_name{$lhs} != 0;
-	@$rule = ($lhs, $rhs1, $rhs2, $prob, $rule_index);
+	@$rule = ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_param);
     }
 
     # quick-index rules by rhs symbols
@@ -353,6 +406,7 @@ sub update_p_empty {
     delete $self->{'p_empty_by_name'};
 }
 
+# helper called by EM
 sub update_indexed_rule_probs {
     my ($self) = @_;
     $self->normalize_rule_probs;
@@ -481,13 +535,13 @@ sub index_rules {
     $self->{'rule_by_rhs1'} = {};
     $self->{'rule_by_rhs2'} = {};
     for my $rule (@{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
+	my ($lhs, $rhs1, $rhs2, $prob, $rule_index, $prob_param) = @$rule;
 	my ($lhs_id, $rhs1_id, $rhs2_id) = map ($self->sym_id->{$_}, $lhs, $rhs1, $rhs2);
-	push @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}}, [$rhs2_id, $prob, $rule_index];
+	push @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}}, [$rhs2_id, $prob, $rule_index, $prob_param];
 	push @{$self->rule_by_lhs->{$lhs_id}}, $rule_index;
 	push @{$self->rule_by_rhs1->{$rhs1_id}}, $rule_index;
 	push @{$self->rule_by_rhs2->{$rhs2_id}}, $rule_index;
-	push @{$self->tokenized_rule}, [$lhs_id, $rhs1_id, $rhs2_id, $prob];
+	push @{$self->tokenized_rule}, [$lhs_id, $rhs1_id, $rhs2_id, $prob, $prob_param];
 	warn "Indexed rule: $lhs -> $rhs1 $rhs2 $prob;" if $self->verbose;
     }
 }
@@ -496,6 +550,7 @@ sub index_rules {
 sub to_string {
     my ($self) = @_;
     my @text;
+    my $fmt = '%.' . $self->output_precision . 'g';
     if (@{$self->agents} > 1) {
 	for my $agent (@{$self->agents}) {
 	    my @term = grep (!/\@$agent$/,
@@ -510,6 +565,12 @@ sub to_string {
 	    }
 	}
     }
+
+    for my $pgroup (@{$self->pgroups}) {
+	push @text, "(" . join (", ", @$pgroup) . ") = (" . join (", ", map (sprintf ($fmt, $self->param->{$_}),
+									     @$pgroup)) . ");\n";
+    }
+
     my $quant_regex = $self->quantifier_regex . '$';
     for my $lhs (sort @{$self->sym_name}) {
 	next if $lhs =~ /\./;  # don't print rules added by Chomsky-fication
@@ -519,16 +580,19 @@ sub to_string {
 	for my $rhs1 (sort @rhs1) {
 	    my $rhs1_id = $self->sym_id->{$rhs1};
 	    $rhs1 =~ s/\./ /g;  # de-Chomskyfy
-	    my @rule = sort {$self->sym_name->[$a->[0]] cmp $self->sym_name->[$b->[0]]} @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}};
+	    my @rule = sort {$self->sym_name->[$a->[0]] cmp $self->sym_name->[$b->[0]]}
+	    @{$self->rule_by_lhs_rhs1->{$lhs_id}->{$rhs1_id}};
 	    for my $rule (@rule) {
-		my ($rhs2_id, $rule_prob, $rule_index) = @$rule;
+		my ($rhs2_id, $rule_prob, $rule_index, $prob_param) = @$rule;
 		my $rhs2 = $self->sym_name->[$rhs2_id];
 		my $rhs = " $rhs1 $rhs2";
 		$rhs =~ s/ @{[$self->end]}//g;
 		$rhs =~ s/\s+/ /;
 		$rhs =~ s/^\s*//;
 		$rhs = $self->end unless length $rhs;
-		$rule_prob = ($rule_prob == 1 ? "" : sprintf(" (%.4g)", $rule_prob));
+		$rule_prob = defined($prob_param)
+		    ? " ($prob_param)"
+		    : ($rule_prob == 1 ? "" : sprintf(" ($fmt)", $rule_prob));
 		push @text, "$lhs -> $rhs$rule_prob;\n";
 	    }
 	}
@@ -673,9 +737,12 @@ sub get_prob_and_rule_counts {
 sub counts_to_string {
     my ($self) = @_;
     my @text;
+    for my $pgroup (@{$self->pgroups}) {
+	push @text, "(" . join (", ", @$pgroup) . ") = (" . join (", ", map ($self->param->{$_}, @$pgroup)) . ");\n";
+    }
     for my $rule (@{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $count, $rule_index) = @$rule;
-	push @text, "$lhs -> $rhs1 $rhs2 ($count);  // Rule $rule_index\n";
+	my ($lhs, $rhs1, $rhs2, $count, $rule_index, $prob_param) = @$rule;
+	push @text, "$lhs -> $rhs1 $rhs2 ($count);  // Rule $rule_index\n" unless defined $prob_param;
     }
     return join ("", @text);
 }
@@ -684,10 +751,17 @@ sub counts_to_string {
 sub update_rule_probs {
     my ($self, $rule_count) = @_;
     confess "|rule_count|=", @$rule_count+0, " |rule|=", @{$self->rule}+0 unless @$rule_count == @{$self->rule};
+    my %param_count = map (($_ => 0), keys %{$self->param});
     for my $rule_index (0..$#{$self->rule}) {
-	my ($lhs, $rhs1, $rhs2, $prob) = @{$self->tokenized_rule->[$rule_index]};
-	$self->set_rule_prob ($rule_index, $rule_count->[$rule_index]);
+	my ($lhs, $rhs1, $rhs2, $prob, $prob_param) = @{$self->tokenized_rule->[$rule_index]};
+	my $rc = $rule_count->[$rule_index];
+	if (defined $prob_param) {
+	    $param_count{$prob_param} += $rc;
+	} else {
+	    $self->set_rule_prob ($rule_index, $rc);
+	}
     }
+    $self->param (\%param_count);
     warn $self->counts_to_string if $self->verbose;
     $self->update_indexed_rule_probs;  # update any caches that contain probabilities
 }
