@@ -309,7 +309,7 @@ sub normalize_rule_probs {
 
     for my $rule (@{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $rule_index) = @$rule;
-	$prob /= $outgoing_prob_by_name{$lhs};
+	$prob /= $outgoing_prob_by_name{$lhs} if $outgoing_prob_by_name{$lhs} != 0;
 	@$rule = ($lhs, $rhs1, $rhs2, $prob, $rule_index);
     }
 

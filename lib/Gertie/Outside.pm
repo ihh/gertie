@@ -65,11 +65,13 @@ sub new_Outside {
 
 sub get_r {
     my ($self, $i, $j, $sym) = @_;
+    confess "(i,j)=($i,$j) out of range" if $i < 0 || $j < $i || $j > $self->len;
     return $self->r->[$i]->[$j-$i]->[$sym];
 }
 
 sub set_r {
     my ($self, $i, $j, $sym, $rval) = @_;
+    confess "(i,j)=($i,$j) out of range" if $i < 0 || $j < $i || $j > $self->len;
     $self->r->[$i]->[$j-$i]->[$sym] = $rval;
 }
 
@@ -84,9 +86,9 @@ sub to_string {
     my $len = $self->len;
     my @out;
     my @sym = @{$self->gertie->sym_name};
-    for (my $i = $len; $i >= 0; --$i) {
+    for (my $i = 0; $i < $len; ++$i) {
 
-	for (my $j = $i; $j <= $len; ++$j) {
+	for (my $j = $len; $j > $i; --$j) {
 	    push @out, "Outside ($i,$j):";
 	    for my $sym_id (0..$#sym) {
 		my $rval = $self->get_r ($i, $j, $sym_id);
@@ -115,12 +117,12 @@ sub fill {
     $self->set_r (0, $len, $gertie->start_id, 1);
 
     my @outside_sym = reverse (grep ($_ != $gertie->end_id, 0 .. $n_symbols - 1));
-    for (my $j = $len; $j >= 0; --$j) {
+    for (my $j = $len; $j > 0; --$j) {
 	for (my $i = 0; $i <= $j; ++$i) {
 	    for my $sym (@outside_sym) {
 
-		# r(i,j,sym) = sum_{symA,symB} P(symA->symB sym) sum_{k=0}^i r(k,j,symA) p(k,i,symB)
-		#              + sum_{symA,symC} P(symA->sym symC) sum_{k=j}^{length} r(i,k,symA) p(j,k,symC)
+		# r(i,j,sym) = sum_{symA,symB} P(symA->symB sym) sum_{k=0}^{i-1} r(k,j,symA) p(k,i,symB)
+		#              + sum_{symA,symC} P(symA->sym symC) sum_{k=j+1}^{length} r(i,k,symA) p(j,k,symC)
 		my $rval = $self->get_r ($i, $j, $sym);
 		for my $rule_index (@{$gertie->rule_by_rhs2->{$sym}}) {
 		    my ($lhs, $rhs1, $rhs2, $rule_prob) = @{$rule->[$rule_index]};
@@ -130,8 +132,8 @@ sub fill {
 		}
 		for my $rule_index (@{$gertie->rule_by_rhs1->{$sym}}) {
 		    my ($lhs, $rhs1, $rhs2, $rule_prob) = @{$rule->[$rule_index]};
-		    my $avoid_dup = ($rhs1 == $rhs2 && $i == $j);
-		    for (my $k = ($avoid_dup ? $j+1 : $j); $k <= $len; ++$k) {
+		    my $dup = ($i == $j && $rhs2 == $sym);
+		    for (my $k = $dup ? $j+1 : $j; $k <= $len; ++$k) {
 			$rval += $rule_prob * $self->get_r($i,$k,$lhs) * $inside->get_p($j,$k,$rhs2);
 		    }
 		}
@@ -151,15 +153,19 @@ sub fill {
 # Posterior probability that symbol X generated subseq i..j-1 is r(i,j,X)*p(i,j,X)/p(0,length,start)
 sub post_nonterm_prob {
     my ($self, $i, $j, $sym) = @_;
-    return $self->get_r($i,$j,$sym) * $self->inside->get_p($i,$j,$sym) / $self->inside->final_p;
+    my $final_p = $self->inside->final_p;
+    return undef if $final_p == 0;
+    return $self->get_r($i,$j,$sym) * $self->inside->get_p($i,$j,$sym) / $final_p;
 }
 
 # Post. prob. that rule A->BC generated i..j-1 and j..k-1 is r(i,j,A)*p(i,k,B)*p(k,j,C)*P(A->BC)/p(0,length,start)
 sub post_rule_prob {
     my ($self, $i, $j, $k, $rule_index) = @_;
     my ($lhs, $rhs1, $rhs2, $prob) = @{$self->gertie->tokenized_rule->[$rule_index]};
+    my $final_p = $self->inside->final_p;
+    return undef if $final_p == 0;
     return $self->get_r($i,$j,$lhs) * $self->inside->get_p($i,$k,$rhs1) * $self->inside->get_p($k,$j,$rhs2) * $prob
-	/ $self->inside->final_p;
+	/ $final_p;
 }
 
 1;

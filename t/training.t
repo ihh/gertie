@@ -33,8 +33,6 @@ my $inside = $g->prefix_Inside ([$g->tokenize ('d')]);
 my $outside = Gertie::Outside->new_Outside ($inside);
 #warn $outside->to_string;
 my $outside_target = <<END;
-Outside (1,1): c=>1
-Outside (0,0):
 Outside (0,1): d=>1 b=>1 a=>1
 END
 test ($outside->to_string, $outside_target, "DP matrix");
@@ -44,7 +42,7 @@ test_array ($counts, [2,2,2], "counts");
 
 sub test_training {
     my ($g_init, $g_target, $training_seqs, $counts_target, $desc) = @_;
-    my $g = Gertie->new_from_string ($g_init); # ,'verbose' => 1);
+    my $g = Gertie->new_from_string ($g_init);# ,'verbose' => 1);
     my $counts = $g->get_prob_and_rule_counts ($training_seqs);
     test_array ($counts, $counts_target, "$desc (counts)");
     $g->train ($training_seqs);
