@@ -61,10 +61,13 @@ x -> d (0.3);
 x* -> end (0.2308);
 x* -> x x* (0.7692);
 END
-test_training ('s->x*;x*->x x*(.5)|end(.5);x->a|b|c|d',
+# note how we write out all the implicit quantifier rules explicitly in the grammar initializer (first argument)
+# this is not strictly required, but it makes the test more readable:
+# the first three counts 3,10,3... (fourth argument) are counts for the rules "s->x*", "x*->x x*" and "x*->end"
+test_training ('s->x*;x*->x x*(.5)|end(.5);x->a|b|c|d',  # the "x->x x*|end" rule is shown explicitly, to make sense of the counts in the fourth argument to test_training
 	       $g1t,
 	       [[qw(a a a a)], [qw(a b c d)], [qw(d d)]],
-	       [3, 10, 3, 5, 1, 1, 3],
+	       [3, 10, 3, 5, 1, 1, 3],  # order of these counts follows rules in first subroutine arg to test_training
 	       "null model");
 
 
