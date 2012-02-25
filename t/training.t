@@ -12,18 +12,17 @@ sub test {
     my ($val, $expected, $desc) = @_;
     my $n = @log + 1;
     $desc = defined($desc) ? " - $desc" : "";
-    confess unless defined $expected;
-    if ($val eq $expected) { push @log, "ok $n$desc\n" }
-    else { push @log, "not ok $n$desc\nExpected:\n$expected\nGot:\n$val\n" }
+    if (defined($val) == defined($expected)
+	&& (defined($val) ? $val eq $expected : 1)) { push @log, "ok $n$desc\n" }
+    else { $val = "undef" unless defined $val; $expected = "undef" unless defined $expected;
+	   push @log, "not ok $n$desc\nExpected:\n$expected\nGot:\n$val\n" }
 }
 
 sub test_array {
     my ($val, $expected, $desc) = @_;
     test (0+@$val, 0+@$expected, "$desc (array length)");
-    if (@$val == @$expected) {
-	for my $n (0..$#$val) {
-	    test ($val->[$n], $expected->[$n], "$desc (element $n)");
-	}
+    for my $n (0..$#$expected) {
+	test ($val->[$n], $expected->[$n], "$desc (element $n)");
     }
 }
 
