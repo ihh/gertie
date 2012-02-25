@@ -54,6 +54,7 @@ Creates a new AutoHash object.
 
 sub new {
     my ($class, @data) = @_;
+    confess "Odd number of elements in AutoHash constructor" unless @data % 2 == 0;
     my $self = {@data};
     $class = ref($class) if ref($class);
     bless $self, $class;

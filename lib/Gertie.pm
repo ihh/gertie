@@ -164,8 +164,8 @@ sub add_rule {
     my ($self, $lhs, $rhs1, $rhs2, $prob) = @_;
     # Supply default values
     $rhs2 = $self->end unless defined($rhs2) && length($rhs2);
+    $prob = eval($prob) if defined($prob) && length($prob);
     $prob = 1 unless defined($prob) && length($prob);
-    $prob = eval($prob);
     warn "Adding Chomsky rule: $lhs -> $rhs1 $rhs2" if $self->verbose > 10;
     # Check the rule is valid
     confess "Empty rule" unless defined($rhs1) && length($rhs1);
@@ -286,6 +286,7 @@ sub get_rule_prob {
 # Call index() after this method, to update all caches
 sub set_rule_prob {
     my ($self, $rule_index, $new_prob) = @_;
+    confess "Probability undefined" unless defined $new_prob;
     $self->rule->[$rule_index]->[3] = $new_prob;  # fields are (lhs,rhs1,rhs2,prob)
 }
 
@@ -527,7 +528,7 @@ sub to_string {
 		$rhs =~ s/\s+/ /;
 		$rhs =~ s/^\s*//;
 		$rhs = $self->end unless length $rhs;
-		$rule_prob = ($rule_prob == 1 ? "" : " ($rule_prob)");
+		$rule_prob = ($rule_prob == 1 ? "" : sprintf(" (%.4g)", $rule_prob));
 		push @text, "$lhs -> $rhs$rule_prob;\n";
 	    }
 	}
@@ -546,6 +547,7 @@ sub tokenize {
 # subroutine to compute Inside matrix for given tokenized prefix sequence
 sub prefix_Inside {
     my ($self, $tokseq, @args) = @_;
+    confess "tokseq must be a listref" unless defined($tokseq) && ref($tokseq) eq 'ARRAY';
     my $inside_class = $self->inside_class;
     eval ("require $inside_class");
     return $inside_class->new_Inside ($self, $tokseq, 'verbose' => 0, @args);
@@ -638,8 +640,10 @@ sub parse_tree_sequence {
 sub train {
     my ($self, $training_seq_list) = @_;
     my $last_prob;
-    while (1) {
+    for (my $iter = 1; 1; ++$iter) {
 	my $prob = $self->single_EM_iteration_likelihood ($training_seq_list);
+	warn "EM iteration \#$iter: Probability $prob", defined($last_prob) ? (" (previous $last_prob") : ()
+	    if $self->verbose;
 	last if defined($last_prob) && $prob < $last_prob;
 	$last_prob = $prob;
     }
@@ -647,20 +651,28 @@ sub train {
 
 sub single_EM_iteration_likelihood {
     my ($self, $training_seq_list) = @_;
+    my ($all_prob, $rule_count) = $self->get_prob_and_rule_counts ($training_seq_list);
+    $self->update_rule_probs ($rule_count);
+    return $all_prob;
+}
+
+sub get_prob_and_rule_counts {
+    my ($self, $training_seq_list) = @_;
     my @rule_count = map (0, @{$self->rule});
     my $all_prob = 1;
     for my $seq (@$training_seq_list) {
-	my $inside = $self->prefix_Inside ($self->tokenize (@$seq));
+	my $inside = $self->prefix_Inside ([$self->tokenize (@$seq)]);
 	my $outside = Gertie::Outside->new_Outside ($inside, 'rule_count' => \@rule_count);
 	$all_prob *= $inside->final_p;
+	warn "Sequence=(@$seq) rule_count=(@rule_count)" if $self->verbose;
     }
-    $self->update_rule_probs (\@rule_count);
-    return $all_prob;
+    return ($all_prob, \@rule_count);
 }
 
 # update rule probabilities from a set of Inside-Outside counts
 sub update_rule_probs {
     my ($self, $rule_count) = @_;
+    confess "|rule_count|=", @$rule_count+0, " |rule|=", @{$self->rule}+0 unless @$rule_count == @{$self->rule};
     my %count_by_lhs;
     for my $rule_index (0..$#{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob) = @{$self->tokenized_rule->[$rule_index]};
@@ -668,10 +680,9 @@ sub update_rule_probs {
     }
     for my $rule_index (0..$#{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob) = @{$self->tokenized_rule->[$rule_index]};
-	$self->set_rule_prob ($rule_count->[$rule_index] / $count_by_lhs{$lhs});
+	$self->set_rule_prob ($rule_index, $rule_count->[$rule_index] / $count_by_lhs{$lhs});
     }
     $self->update_indexed_rule_probs;  # update any caches that contain probabilities
 }
-
 
 1;

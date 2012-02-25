@@ -52,15 +52,25 @@ sub new_Outside {
     my $self = AutoHash->new ( 'inside' => $inside,
 			       'gertie' => $inside->gertie,
 			       'tokseq' => $inside->tokseq,
-			       'r' => [map ([map ([0, 1..$inside->gertie->n_symbols],
+			       'r' => [map ([map ([map (0, 1..$inside->gertie->n_symbols)],
 						  $_..$inside->len)],
 					    0..$inside->len)],
-			       'rule_count' => map (0, 1..$inside->gertie->n_symbols),
+			       'rule_count' => [map (0, 1..$inside->gertie->n_symbols)],
 			       'verbose' => 0,
 			       @args );
     bless $self, $class;
     $self->fill;
     return $self;
+}
+
+sub get_r {
+    my ($self, $i, $j, $sym) = @_;
+    return $self->r->[$i]->[$j-$i]->[$sym];
+}
+
+sub set_r {
+    my ($self, $i, $j, $sym, $rval) = @_;
+    $self->r->[$i]->[$j-$i]->[$sym] = $rval;
 }
 
 sub len {
@@ -79,7 +89,7 @@ sub to_string {
 	for (my $j = $i; $j <= $len; ++$j) {
 	    push @out, "Outside ($i,$j):";
 	    for my $sym_id (0..$#sym) {
-		my $rval = $self->r->[$i]->[$j]->[$sym_id];
+		my $rval = $self->get_r ($i, $j, $sym_id);
 		push @out, " ", $sym[$sym_id], "=>", $rval if $rval > 0;
 	    }
 	    push @out, "\n";
@@ -102,7 +112,7 @@ sub fill {
     my $final_p = $inside->final_p;
 
     my $r = $self->r;
-    $r->[0]->[$len]->[$self->start] = 1;
+    $self->set_r (0, $len, $gertie->start_id, 1);
 
     for (my $j = $len; $j >= 0; --$j) {
 	for (my $i = 0; $i <= $j; ++$i) {
@@ -110,25 +120,34 @@ sub fill {
 
 		# r(i,j,sym) = sum_{symA,symB} P(symA->symB sym) sum_{k=0}^i r(k,j,symA) p(k,i,symB)
 		#              + sum_{symA,symC} P(symA->sym symC) sum_{k=j}^{length} r(i,k,symA) p(j,k,symC)
-		my $rval = $r->[$i]->[$j]->[$sym];
+		my $rval = $self->get_r ($i, $j, $sym);
+		my %seen;
 		for my $rule_index (@{$gertie->rule_by_rhs2->{$sym}}) {
 		    my ($lhs, $rhs1, $rhs2, $rule_prob) = @{$rule->[$rule_index]};
 		    for (my $k = 0; $k <= $i; ++$k) {
-			$rval += $rule_prob * $r->[$k]->[$j]->[$lhs] * $inside->get_p($k,$i,$rhs1);
+			$rval += $rule_prob * $self->get_r($k,$j,$lhs) * $inside->get_p($k,$i,$rhs1);
+
+			my ($l,$r1,$r2)=map($gertie->sym_name->[$_], $lhs,$rhs1,$rhs2);
+			warn "i=$i j=$j k=$k sym=",$gertie->sym_name->[$sym]," rval=$rval ($l->$r1 $r2) prob=$rule_prob r($k,$j,$l)=",$self->get_r($k,$j,$lhs)," p($k,$i,$r1)=",$inside->get_p($k,$i,$rhs1) if $sym==$gertie->end_id && $rval > 0;
 		    }
 		}
 		for my $rule_index (@{$gertie->rule_by_rhs1->{$sym}}) {
 		    my ($lhs, $rhs1, $rhs2, $rule_prob) = @{$rule->[$rule_index]};
-		    for (my $k = $i; $k <= $len; ++$k) {
-			$rval += $rule_prob * $r->[$i]->[$k]->[$lhs] * $inside->get_p($j,$k,$rhs2);
+		    my $avoid_dup = ($rhs1 == $rhs2 && $i == $j);
+		    for (my $k = ($avoid_dup ? $j+1 : $j); $k <= $len; ++$k) {
+			$rval += $rule_prob * $self->get_r($i,$k,$lhs) * $inside->get_p($j,$k,$rhs2);
+
+			my ($l,$r1,$r2)=map($gertie->sym_name->[$_], $lhs,$rhs1,$rhs2);
+			warn "i=$i j=$j sym=",$gertie->sym_name->[$sym]," rval=$rval ($l->$r1 $r2)" if $sym==$gertie->end_id && $rval > 0;
 		    }
 		}
-		$r->[$i]->[$j]->[$sym] = $rval;
+		$self->set_r ($i, $j, $sym, $rval);
 
 		# Accumulate counts
 		for my $rule_index (@{$gertie->rule_by_lhs->{$sym}}) {
 		    for (my $k = $i; $k <= $j; ++$k) {
-			$rule_count->[$rule_index] += $self->post_rule_prob ($i, $j, $k, $rule_index) / $final_p;
+#			warn "i=$i j=$j k=$k sym=$sym rule_index=$rule_index";
+			$rule_count->[$rule_index] += $self->post_rule_prob ($i, $j, $k, $rule_index);
 		    }
 		}
 	    }
@@ -139,14 +158,14 @@ sub fill {
 # Posterior probability that symbol X generated subseq i..j-1 is r(i,j,X)*p(i,j,X)/p(0,length,start)
 sub post_nonterm_prob {
     my ($self, $i, $j, $sym) = @_;
-    return $self->r->[$i]->[$j]->[$sym] * $self->inside->get_p($i,$j,$sym) / $self->inside->final_p;
+    return $self->get_r($i,$j,$sym) * $self->inside->get_p($i,$j,$sym) / $self->inside->final_p;
 }
 
 # Post. prob. that rule A->BC generated i..j-1 and j..k-1 is r(i,j,A)*p(i,k,B)*p(k,j,C)*P(A->BC)/p(0,length,start)
 sub post_rule_prob {
     my ($self, $i, $j, $k, $rule_index) = @_;
     my ($lhs, $rhs1, $rhs2, $prob) = @{$self->gertie->tokenized_rule->[$rule_index]};
-    return $self->r->[$i]->[$j]->[$lhs] * $self->inside->get_p($i,$k,$rhs1) * $self->inside->get_p($k,$j,$rhs2) * $prob
+    return $self->get_r($i,$j,$lhs) * $self->inside->get_p($i,$k,$rhs1) * $self->inside->get_p($k,$j,$rhs2) * $prob
 	/ $self->inside->final_p;
 }
 
