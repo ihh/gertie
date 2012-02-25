@@ -343,7 +343,6 @@ sub record_turn {
 
     # log that we moved on this turn (including "skip turn" moves)
     push @{$self->turns->{$agent}}, $self->current_turn if $agent_could_move;
-    warn "skipped" if !defined($next_term) && $agent_could_move;
 
     # count
     ++$self->{'current_turn'};
