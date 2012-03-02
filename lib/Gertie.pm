@@ -18,6 +18,7 @@ use Symbol qw(gensym);
 # specific imports
 use Graph::Directed;
 use Math::Symbolic;
+use Parse::RecDescent;
 
 # constructor
 sub new_gertie {
