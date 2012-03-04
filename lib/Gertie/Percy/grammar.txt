@@ -40,7 +40,7 @@ narrative_code: code_block
 choice_narrative_literal: <skip:''> string_literal '=>' string_literal
 choice_narrative_code: <skip:''> string_literal '=>' code_block
 
-quantifier: '?' | '*' | '+' | '{' m/[0-9]*/ '}' | '{' m/[0-9]*/ ',' m/[0-9]*/ '}'
+quantifier: '?' | '*' | '+' | '{' m/\d*/ '}' | '{' m/\d*/ ',' m/\d*/ '}'
 
 rule_prob_expr: paren_expr
 paren_expr: '(' expr ')'
