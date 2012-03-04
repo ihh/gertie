@@ -1,13 +1,17 @@
 grammar: statement(s /;/)
 
-statement: empty_statement | pragma | parameter_declaration | rule
+statement: empty_statement | declaration | rule
 empty_statement:
-pragma: agent_declaration | preamble | prompt | weight
+declaration: parameter_declaration | agent_declaration | preamble | prompt | weight
+
+parameter_declaration: param_keyword(?) '(' identifier(s /,/) ')' '=' '(' numeric_constant(s /,/) ')'
+param_keyword: '#param'
+identifier: m/[a-z]\w+/
+numeric_constant: m/[0-9\.e\+\-]+/
 
 agent_declaration: agent_keyword(?) agent_label identifier(s)
 agent_keyword: '#agent'
 agent_label: <skip:''> '@' identifier
-identifier: m/[a-z]\w+/
 
 preamble: '#preamble' code_or_quote
 code_or_quote: code_block | string_literal
@@ -16,9 +20,6 @@ string_literal: <perl_quotelike>
 
 prompt: '#prompt' code_or_quote
 weight: '#weight' agent_label code_block
-
-parameter_declaration: '(' identifier(s /,/) ')' '=' '(' numeric_constant(s /,/) ')'
-numeric_constant: m/[0-9\.e\+\-]+/
 
 rule: grammar_symbol '->' production(s /|/)
 production: quantified_rhs_symbol(s?) rule_prob_expr(?)
