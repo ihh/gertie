@@ -22,7 +22,7 @@ string_literal: <perl_quotelike>
 prompt: '#prompt' code_or_quote
 weight: '#weight' agent_label code_block
 
-rule: grammar_symbol '->' production(s /|/)
+rule: grammar_symbol ('->' | ':') production(s /|/)
 production: quantified_rhs_symbol(s?) rule_prob_expr(?)
 
 grammar_symbol: 'start' | <skip:''> identifier agent_label(?)
