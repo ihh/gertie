@@ -1,0 +1,8 @@
+lib/Gertie/Inside/CParser/parser.bundle
+lib/Gertie/Inside/CParser/parser.o
+lib/Gertie/Inside/CParser/parser.pm
+lib/Gertie/Inside/CParser/parser_wrap.c
+lib/Gertie/Inside/CParser/parser_wrap.o
+lib/Gertie/Inside/CParser/t/simple.t
+lib/Gertie/Inside/CParser/t/simple.t.dSYM/
+*~
