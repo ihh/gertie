@@ -21,10 +21,21 @@ sub dump_log {
 
 
 my $grammar_file = abs_path("$FindBin::Bin/../lib/Gertie/Percy/grammar.txt");
+my $text_file = abs_path("$FindBin::Bin/../t/turn-grammar");
+
 my $grammar = `cat $grammar_file`;
+my $text = `cat $text_file`;
 
 my $parser = Parse::RecDescent->new ($grammar);
+test (1, 1, "Parse::RecDescent initialized from grammar.txt");
 
-test (1, 1, "Parse::RecDescent recognizes grammar.txt");
+my $gertie = $parser->grammar ($text);
+test (defined($gertie), 1, "turn-grammar parsed to grammar.txt");
+test (ref($gertie), "Gertie", "parser creates a Gertie");
+
+test ($gertie->has_symbol_index, 1, "Gertie is indexed");
+if ($gertie->has_symbol_index) {
+#    warn $gertie->to_string;
+}
 
 dump_log();

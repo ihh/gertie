@@ -425,7 +425,11 @@ sub index_symbols {
     my ($self) = @_;
 
     # Check that we have some rules & symbols to index
-    confess "No rules to index" unless @{$self->rule};
+    unless (@{$self->rule}) {
+	warn "No rules to index; adding default start nonterminal\n";
+	$self->{'start'} = "start";
+	$self->add_symbols ($self->start);
+    }
 
     # normalize
     $self->normalize_rule_probs;
@@ -504,6 +508,11 @@ sub index_symbols {
 
     # delete transient indices/lookups/variables we have no further use for
     delete $self->{'symbols'};  # use $self->sym_name instead
+}
+
+sub has_symbol_index {
+    my ($self) = @_;
+    return defined ($self->{'sym_id'});
 }
 
 sub dense_graph {

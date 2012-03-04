@@ -1,18 +1,14 @@
 { use Gertie; my $gertie = Gertie->new_gertie(); }
-grammar: statement(s /;/) { $return = $gertie }
+grammar: statement(s /;/) { $gertie->index; $return = $gertie }
 
 statement: empty_statement | declaration | rule
 empty_statement:
-declaration: parameter_declaration | agent_declaration | preamble | prompt | weight
+declaration: parameter_declaration | preamble | prompt | agent_declaration | agent_model | agent_weight | agent_strategy
 
 parameter_declaration: param_keyword(?) '(' identifier(s /,/) ')' '=' '(' numeric_constant(s /,/) ')'
 param_keyword: '#param'
 identifier: m/[a-z]\w+/
 numeric_constant: m/[0-9\.e\+\-]+/
-
-agent_declaration: agent_keyword(?) agent_label identifier(s)
-agent_keyword: '#agent'
-agent_label: <skip:''> '@' identifier
 
 preamble: '#preamble' code_or_quote
 code_or_quote: code_block | string_literal
@@ -20,7 +16,15 @@ code_block: <perl_codeblock>
 string_literal: <perl_quotelike>
 
 prompt: '#prompt' code_or_quote
-weight: '#weight' agent_label code_block
+
+agent_declaration: agent_keyword(?) agent_label agent_terminals
+agent_keyword: '#agent'
+agent_label: <skip:''> '@' identifier
+agent_terminals: grammar_symbol(s)
+
+agent_model: '#model' agent_label grammar_symbol
+agent_weight: '#weight' agent_label code_block
+agent_strategy: '#strategy' agent_label ('mortal' | 'drunk' | 'greedy')
 
 rule: grammar_symbol ('->' | ':') production(s /|/)
 production: quantified_rhs_symbol(s?) rule_prob_expr(?)
@@ -31,18 +35,18 @@ rhs_symbol: grammar_symbol
  | 'end'
  | '(' production '|' production(s /|/) ')'
  | <skip:''> narrative_literal agent_label(?)
- | <skip:''> choice_narrative_literal agent_label(?)
+ | <skip:''> afforded_narrative_literal agent_label(?)
  | <skip:''> narrative_code agent_label(?)
- | <skip:''> choice_narrative_code agent_label(?)
- | <skip:''> choice_narrative_identifier agent_label(?)
+ | <skip:''> afforded_narrative_code agent_label(?)
+ | <skip:''> afforded_narrative_alias agent_label(?)
 
 quantified_rhs_symbol: <skip:''> rhs_symbol quantifier(?)
 
 narrative_literal: string_literal
 narrative_code: code_block
-choice_narrative_literal: <skip:''> string_literal '=>' string_literal
-choice_narrative_code: <skip:''> string_literal '=>' code_block
-choice_narrative_identifier: <skip:''> string_literal '=>' identifier
+afforded_narrative_literal: <skip:''> string_literal '=>' string_literal
+afforded_narrative_code: <skip:''> string_literal '=>' code_block
+afforded_narrative_alias: <skip:''> string_literal '=>' grammar_symbol
 
 quantifier: '?' | '*' | '+' | '{' m/\d*/ '}' | '{' m/\d*/ ',' m/\d*/ '}'
 
