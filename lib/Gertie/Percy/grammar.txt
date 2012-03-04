@@ -11,8 +11,9 @@
 grammar: statement_list eofile { $gertie->add_deferred_rules; $gertie->index; $return = $robin; 1 }
 eofile: /^\Z/
 
-statement_list: statement semicolon statement_list | statement semicolon(?)
+statement_list: statement additional_statement(s?) semicolon(?)
 statement: parameter_declaration | game_declaration | rule { $return = 1 }
+additional_statement: semicolon statement
 semicolon: ';'
 
 game_declaration: (preamble | prompt | agent_declaration | agent_model | agent_weight | agent_strategy)

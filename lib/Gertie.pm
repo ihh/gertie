@@ -169,6 +169,7 @@ sub declare_agent_ownership {
 sub expand_rule {
     my ($self, $lhs, $rhs, $prob) = @_;
     confess "rhs must be an arrayref" unless ref($rhs) eq 'ARRAY';
+    warn "expanding lhs -> @$rhs ($prob)" if $self->verbose > 10;
     $self->foreach_agent ([$lhs, @$rhs],
 			  sub { my ($lhs, @rhs) = @_;
 				my ($deferred_rule, @newrhs) = $self->process_quantifiers (@rhs);
