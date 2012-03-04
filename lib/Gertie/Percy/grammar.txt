@@ -42,10 +42,10 @@ agent_weight: '#weight' agent_label code_block
 agent_strategy: '#strategy' agent_label ('mortal' | 'drunk' | 'greedy')
 <error: #strategy is not yet implemented>
 
-rule: grammar_symbol ('->' | ':') production[$item[1]](s /|\s*/)
+rule: grammar_symbol ('->' | ':') production[$item[1]](s /\s*\|\s*/)
 production: quantified_rhs_symbol(s?) rule_prob_expr(?)
 { 
-warn "Problem: can't parse 'a -> b c' properly";
+warn "Trying to parse a rule";
 warn "\@arg=(@arg)";
 warn "\@{item[1]}=", @{$item[1]};
 warn "\@{item[2]}=", @{$item[2]};
@@ -58,7 +58,7 @@ agent_suffix: agent_prefix_symbol identifier
 
 rhs_symbol: grammar_symbol
  | 'end'
- | <skip:'\s*'> '(' production '|' production(s /|/) ')'
+ | <skip:'\s*'> '(' production '|' production(s /\s*\|\s*/) ')'
  | narrative_literal
  | afforded_narrative_literal
  | narrative_code

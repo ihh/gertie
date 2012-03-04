@@ -29,7 +29,7 @@ my $grammar = `cat $grammar_file`;
 my $parser = Parse::RecDescent->new ($grammar);
 test (1, 1, "Parse::RecDescent initialized from grammar.txt");
 
-my $t0 = "a -> b c";
+my $t0 = "a -> b c (1)";
 my $rule = $parser->rule ($t0);
 die unless defined $rule;
 
