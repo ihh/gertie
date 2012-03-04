@@ -19,18 +19,23 @@ my $grammar_file = abs_path("$FindBin::Bin/../lib/Gertie/Percy/grammar.txt");
 my $grammar = `cat $grammar_file`;
 
 my $parser = Parse::RecDescent->new ($grammar);
-test_crucial (defined($parser)?1:0, 1, "Parse::RecDescent initialized from $grammar_file");
+test_crucial (!$failed && defined($parser)?1:0, 1, "Parse::RecDescent initialized from $grammar_file");
 
 my $t0 = "a -> b c (1)";
+my $t_rp = "a -> b c (3 * 2 + 1)";
 my %sym_eval;
-for my $sym (qw(rule statement statement_list grammar)) {
-    my $expr = eval ("\$parser->$sym (\$t0)");
-#    warn "sym='$sym' expr=",(defined($expr)?"'$expr'":"undef");
-    test_crucial (defined($expr)?1:0, 1, "'$t0' parsed to '$sym' in $grammar_file");
-    $sym_eval{$sym} = $expr;
+for my $t ($t_rp, $t0) {
+    for my $sym (qw(rule statement statement_list grammar)) {
+	my $p = Parse::RecDescent->new ($grammar);
+	my $expr = "\$p->$sym(\$t)";
+	my $expr_eval = eval ($expr);
+#    warn "\$sym='$sym' \$t='$t' $expr=",Data::Dumper->new([$expr_eval])->Dump;
+	test_crucial (!$failed && defined($expr_eval) ? 1 : 0, 1, "'$t' parsed to '$sym' in $grammar_file");
+	$sym_eval{$t}->{$sym} = $expr_eval;
+    }
 }
 
-my $r0 = $sym_eval{'grammar'};
+my $r0 = $sym_eval{$t0}->{'grammar'};
 test_crucial (ref($r0), "Gertie::Robin", "'grammar' returns a Gertie::Robin object");
 
 test_crucial (!$failed && defined($r0->{"gertie"}), 1, "robin->gertie defined");

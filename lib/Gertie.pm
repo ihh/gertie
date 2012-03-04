@@ -169,7 +169,6 @@ sub declare_agent_ownership {
 sub expand_rule {
     my ($self, $lhs, $rhs, $prob) = @_;
     confess "rhs must be an arrayref" unless ref($rhs) eq 'ARRAY';
-    warn "expanding rule $lhs -> @$rhs ($prob)" if $self->verbose > 5;
     $self->foreach_agent ([$lhs, @$rhs],
 			  sub { my ($lhs, @rhs) = @_;
 				my ($deferred_rule, @newrhs) = $self->process_quantifiers (@rhs);
@@ -206,7 +205,7 @@ sub add_rule {
     $rhs2 = $self->end unless defined($rhs2) && length($rhs2);
     $prob = 1 unless defined($prob) && length($prob);
     $prob =~ s/^\(\s*(.*?)\s*\)$/$1/;  # remove brackets
-    my $prob_is_func = ($prob =~ /^[a-z]/);
+    my $prob_is_func = ($prob =~ /^[a-z]/ || $prob =~ /[\*\+]/);
     if ($prob_is_func) {
 	my $f = Math::Symbolic::parse_from_string ($prob);
 	my @undef_param = grep (!defined($self->param->{$_}), $f->signature);
