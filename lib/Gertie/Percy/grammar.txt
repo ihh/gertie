@@ -71,11 +71,11 @@ agent_suffix: agent_prefix_symbol identifier
 
 rhs_symbol: grammar_symbol
  | 'end'
- | anonymous_alternative_list
+ | anonymous_alternation
  | anonymous_narrative_symbol agent_label(?)
 { $return = join("", $item[1], @{$item[2]}); 1 }
 
-anonymous_alternative_list:
+anonymous_alternation:
  '(' delayed_production '|'
 { begin_lhs ($gertie->new_anonymous_symbol);
   $gertie->expand_rule ($lhs, @{$item{'delayed_production'}});
