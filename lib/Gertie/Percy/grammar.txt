@@ -1,57 +1,88 @@
-{ use Gertie; my $gertie = Gertie->new_gertie(); }
-grammar: statement(s /;/) { $gertie->index; $return = $gertie }
+{
+  use Gertie;
+  use Gertie::Robin;
+  my $gertie = Gertie->new_gertie();
+  my $robin = Gertie::Robin->new_robin($gertie);
+}
+grammar: statement(s /;/) { $gertie->add_deferred_rules; $gertie->index; $return = $robin }
 
 statement: empty_statement | declaration | rule
 empty_statement:
+{ warn "parsed an empty statement" }
 declaration: parameter_declaration | preamble | prompt | agent_declaration | agent_model | agent_weight | agent_strategy
 
 parameter_declaration: param_keyword(?) '(' identifier(s /,/) ')' '=' '(' numeric_constant(s /,/) ')'
+{ $gertie->declare_params (@item[3,7]) }
 param_keyword: '#param'
-identifier: m/[a-z]\w+/
+identifier: m/[a-z]\w*/
 numeric_constant: m/[0-9\.e\+\-]+/
 
-preamble: '#preamble' code_or_quote
-code_or_quote: code_block | string_literal
-code_block: <perl_codeblock>
-string_literal: <perl_quotelike>
+preamble: '#preamble' code_or_quote { $robin->preamble_text ($item[2]) }
+code_or_quote: embedded_code_block | string_literal
+embedded_code_block: code_block { $return = '%{'.$item[1].'}%' }
+code_block: <skip:'\s*'> <perl_codeblock>
+string_literal: <skip:'\s*'> <perl_quotelike>
 
 prompt: '#prompt' code_or_quote
+<error: #prompt is not yet implemented>
 
 agent_declaration: agent_keyword(?) agent_label agent_terminals
+ { $gertie->declare_agent_ownership ($item[2], @{$item[3]}) }
 agent_keyword: '#agent'
-agent_label: <skip:''> '@' identifier
+agent_label: <skip:''> agent_prefix_symbol(?) identifier { $return = $item[3] }
+agent_prefix_symbol: '@'
 agent_terminals: grammar_symbol(s)
 
 agent_model: '#model' agent_label grammar_symbol
+<error: #model is not yet implemented>
+
 agent_weight: '#weight' agent_label code_block
+<error: #weight is not yet implemented>
+
 agent_strategy: '#strategy' agent_label ('mortal' | 'drunk' | 'greedy')
+<error: #strategy is not yet implemented>
 
-rule: grammar_symbol ('->' | ':') production(s /|/)
+rule: grammar_symbol ('->' | ':') production[$item[1]](s /|\s*/)
 production: quantified_rhs_symbol(s?) rule_prob_expr(?)
+{ 
+warn "Problem: can't parse 'a -> b c' properly";
+warn "\@arg=(@arg)";
+warn "\@{item[1]}=", @{$item[1]};
+warn "\@{item[2]}=", @{$item[2]};
+$gertie->expand_rule ($arg[0], $item[1], @{$item[2]}) }
 
-grammar_symbol: 'start' | <skip:''> identifier agent_label(?)
+grammar_symbol: 'start' | <skip:''> identifier agent_suffix(?)
+ { $return = join ("", $item[2], @{$item[3]}) }
+agent_suffix: agent_prefix_symbol identifier
+ { $return = $item[2].$item[3] }
 
 rhs_symbol: grammar_symbol
  | 'end'
- | '(' production '|' production(s /|/) ')'
- | <skip:''> narrative_literal agent_label(?)
- | <skip:''> afforded_narrative_literal agent_label(?)
- | <skip:''> narrative_code agent_label(?)
- | <skip:''> afforded_narrative_code agent_label(?)
- | <skip:''> afforded_narrative_alias agent_label(?)
+ | <skip:'\s*'> '(' production '|' production(s /|/) ')'
+ | narrative_literal
+ | afforded_narrative_literal
+ | narrative_code
+ | afforded_narrative_code
+ | afforded_narrative_alias
 
 quantified_rhs_symbol: <skip:''> rhs_symbol quantifier(?)
+{ $return = join ("", $item[2], @{$item[3]}) }
 
-narrative_literal: string_literal
-narrative_code: code_block
-afforded_narrative_literal: <skip:''> string_literal '=>' string_literal
-afforded_narrative_code: <skip:''> string_literal '=>' code_block
-afforded_narrative_alias: <skip:''> string_literal '=>' grammar_symbol
+narrative_literal: string_literal agent_label(?)
+narrative_code: embedded_code_block agent_label(?)
+afforded_narrative_literal: string_literal '=>' string_literal agent_label(?)
+afforded_narrative_code: string_literal '=>' embedded_code_block agent_label(?)
+afforded_narrative_alias: string_literal '=>' grammar_symbol agent_label(?)
 
 quantifier: '?' | '*' | '+' | '{' m/\d*/ '}' | '{' m/\d*/ ',' m/\d*/ '}'
 
-rule_prob_expr: paren_expr
+rule_prob_expr: '(' expr ')'
+ { $return = $item[2] }
+
 paren_expr: '(' expr ')'
-expr: <leftop: sum_expr '*' sum_expr>
-sum_expr: <leftop: atom_expr '+' atom_expr>
+ { $return = join ("", @item[1..3]) }
+expr: <leftop: product_expr '+' product_expr>
+ { $return = join ("", @item[1..$#item]) }
+product_expr: <leftop: atom_expr '*' atom_expr>
+ { $return = join ("", @item[1..$#item]) }
 atom_expr: identifier | numeric_constant | paren_expr

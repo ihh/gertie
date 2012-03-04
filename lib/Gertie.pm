@@ -130,31 +130,47 @@ sub parse_line {
 	$rhs =~ s/^\s*(.*?)\s*$/$1/;
 	my @rhs = split /\s+/, $rhs;
 	confess "Parse error" unless @rhs >= 2;
-	$self->foreach_agent ([$lhs, @rhs],
-			      sub { my ($lhs, @rhs) = @_;
-				    my ($deferred_rule, @newrhs) = $self->process_quantifiers (@rhs);
-				    $self->add_non_Chomsky_rule ($lhs, \@newrhs, $prob);
-				    push @{$self->deferred_rule}, @$deferred_rule });
+	$self->expand_rule ($lhs, \@rhs, $prob);
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*\s*($prob_regex)(\s*\|(\s*$rhs_regex)*\s*($prob_regex))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
 	my ($lhs, $lhs_crap, $all_rhs) = ($1, $2, $3);
 	my @rhs = split /\|/, $all_rhs;
 	for my $rhs (@rhs) { $self->parse_line ("$lhs -> $rhs") }
     } elsif (/^\s*\@($agent_regex)((\s+$lhs_regex)*)\s*;?$/) {  # @agent_name symbol1 symbol2 symbol3...
 	my ($owner, $symbols, $symbols_crap) = ($1, $2, $3);
-	push @{$self->agents}, $owner unless grep ($_ eq $owner, @{$self->agents});
 	$symbols =~ s/^\s*(.*?)\s*$/$1/;
 	my @symbols = split /\s+/, $symbols;
-	for my $sym (@symbols) { $self->term_owner_by_name->{$sym} = $owner }
-    } elsif (/^\s*\(\s*($param_regex(\s*,\s*$param_regex)*)\s*\)\s*=\s*\(\s*($num_regex(\s*,\s*$num_regex)*)\s*\)\s*$/) {
+	$self->declare_agent_ownership ($owner, @symbols);
+    } elsif (/^\s*\(\s*($param_regex(\s*,\s*$param_regex)*)\s*\)\s*=\s*\(\s*($num_regex(\s*,\s*$num_regex)*)\s*\)\s*$/) {   # (param1, param2, param3...) = (value1, value2, value3...)
 	my ($params, $params_crap, $nums, $nums_crap) = ($1, $2, $3, $4);
 	my @params = split /,/, $params;
 	my @nums = split /,/, $nums;
-	confess "params (@params) and values (@nums) do not match in length" unless @params == @nums;
-	push @{$self->pgroups}, \@params;
-	for my $n (0..$#params) { $self->param->{$params[$n]} = $nums[$n] }
+	$self->declare_params (\@params, \@nums);
     } else {
 	warn "Unrecognized line: ", $_;
     }
+}
+
+sub declare_params {
+    my ($self, $params, $nums) = @_;
+    confess "params (@$params) and values (@$nums) do not match in length" unless @$params == @$nums;
+    push @{$self->pgroups}, $params;
+    for my $n (0..$#$params) { $self->param->{$params->[$n]} = $nums->[$n] }
+}
+
+sub declare_agent_ownership {
+    my ($self, $owner, @symbols) = @_;
+    push @{$self->agents}, $owner unless grep ($_ eq $owner, @{$self->agents});
+    for my $sym (@symbols) { $self->term_owner_by_name->{$sym} = $owner }
+}
+
+sub expand_rule {
+    my ($self, $lhs, $rhs, $prob) = @_;
+    warn "expanding rule $lhs -> @$rhs ($prob)" if $self->verbose > 5;
+    $self->foreach_agent ([$lhs, @$rhs],
+			  sub { my ($lhs, @rhs) = @_;
+				my ($deferred_rule, @newrhs) = $self->process_quantifiers (@rhs);
+				$self->add_non_Chomsky_rule ($lhs, \@newrhs, $prob);
+				push @{$self->deferred_rule}, @$deferred_rule });
 }
 
 sub foreach_agent {

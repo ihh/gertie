@@ -19,23 +19,31 @@ sub dump_log {
     print "1..", @log+0, "\n", @log;
 }
 
+$::RD_HINT = 1;
 
 my $grammar_file = abs_path("$FindBin::Bin/../lib/Gertie/Percy/grammar.txt");
 my $text_file = abs_path("$FindBin::Bin/../t/turn-grammar");
 
 my $grammar = `cat $grammar_file`;
-my $text = `cat $text_file`;
 
 my $parser = Parse::RecDescent->new ($grammar);
 test (1, 1, "Parse::RecDescent initialized from grammar.txt");
 
-my $gertie = $parser->grammar ($text);
-test (defined($gertie), 1, "turn-grammar parsed to grammar.txt");
-test (ref($gertie), "Gertie", "parser creates a Gertie");
+my $t0 = "a -> b c";
+my $rule = $parser->rule ($t0);
+die unless defined $rule;
 
-test ($gertie->has_symbol_index, 1, "Gertie is indexed");
-if ($gertie->has_symbol_index) {
-#    warn $gertie->to_string;
-}
+my $r0 = $parser->grammar ($t0);
+
+test (defined($r0), 1, "turn-grammar parsed to grammar.txt");
+test (ref($r0), "Gertie::Robin", "parser creates a Gertie::Robin");
+
+test ($r0->gertie->has_symbol_index, 1, "Gertie is indexed");
+test ($r0->gertie->n_rules, 1, "Gertie has one rule");
+test ($r0->gertie->n_symbols, 3, "Gertie has three symbols");
+
+my $text = `cat $text_file`;
+#my $robin = $parser->grammar ($text);
+
 
 dump_log();
