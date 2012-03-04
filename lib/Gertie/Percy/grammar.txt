@@ -1,35 +1,41 @@
 {
   use Gertie;
   use Gertie::Robin;
+  use Data::Dumper;
   my $gertie = Gertie->new_gertie();
   my $robin = Gertie::Robin->new_robin($gertie);
+  my ($lhs, @lhs_stack);   # @lhs_stack is needed for nested anonymous rules
 }
-grammar: statement(s /;/) { $gertie->add_deferred_rules; $gertie->index; $return = $robin }
+grammar: statement_list eofile { $gertie->add_deferred_rules; $gertie->index; $return = $robin }
+eofile: /^\Z/
 
-statement: empty_statement | declaration | rule
-empty_statement:
-{ warn "parsed an empty statement" }
-declaration: parameter_declaration | preamble | prompt | agent_declaration | agent_model | agent_weight | agent_strategy
+statement_list: statement semicolon statement_list | statement semicolon(?)
+statement: parameter_declaration | game_declaration | rule
+semicolon: ';'
 
-parameter_declaration: param_keyword(?) '(' identifier(s /,/) ')' '=' '(' numeric_constant(s /,/) ')'
-{ $gertie->declare_params (@item[3,7]) }
+game_declaration: (preamble | prompt | agent_declaration | agent_model | agent_weight | agent_strategy)
+
+parameter_declaration: param_keyword(?) '(' param_list ')' '=' '(' value_list ')'
+{ $gertie->declare_params (@item{qw(param_list value_list)}) }
 param_keyword: '#param'
+param_list: identifier(s /\s*,\s*/)
+value_list: numeric_constant(s /\s*,\s*/)
 identifier: m/[a-z]\w*/
 numeric_constant: m/[0-9\.e\+\-]+/
 
-preamble: '#preamble' code_or_quote { $robin->preamble_text ($item[2]) }
+preamble: '#preamble' code_or_quote { $robin->preamble_text ($item{'code_or_quote'}) }
 code_or_quote: embedded_code_block | string_literal
-embedded_code_block: code_block { $return = '%{'.$item[1].'}%' }
-code_block: <skip:'\s*'> <perl_codeblock>
-string_literal: <skip:'\s*'> <perl_quotelike>
+embedded_code_block: code_block { $return = '%{'.$item{'code_block'}.'}%' }
+code_block: <perl_codeblock>
+string_literal: <perl_quotelike>
 
 prompt: '#prompt' code_or_quote
 <error: #prompt is not yet implemented>
 
 agent_declaration: agent_keyword(?) agent_label agent_terminals
- { $gertie->declare_agent_ownership ($item[2], @{$item[3]}) }
+ { $gertie->declare_agent_ownership ($item{'agent_label'}, @{$item{'agent_terminals'}}) }
 agent_keyword: '#agent'
-agent_label: <skip:''> agent_prefix_symbol(?) identifier { $return = $item[3] }
+agent_label: agent_prefix_symbol(?) identifier { $return = $item{'identifier'} }
 agent_prefix_symbol: '@'
 agent_terminals: grammar_symbol(s)
 
@@ -42,31 +48,40 @@ agent_weight: '#weight' agent_label code_block
 agent_strategy: '#strategy' agent_label ('mortal' | 'drunk' | 'greedy')
 <error: #strategy is not yet implemented>
 
-rule: grammar_symbol ('->' | ':') production[$item[1]](s /\s*\|\s*/)
-production: quantified_rhs_symbol(s?) rule_prob_expr(?)
-{ 
-warn "Trying to parse a rule";
-warn "\@arg=(@arg)";
-warn "\@{item[1]}=", @{$item[1]};
-warn "\@{item[2]}=", @{$item[2]};
-$gertie->expand_rule ($arg[0], $item[1], @{$item[2]}) }
+rule: grammar_symbol ('->' | ':')
+ { $lhs = $item{'grammar_symbol'} }
+ at_least_one_production
 
-grammar_symbol: 'start' | <skip:''> identifier agent_suffix(?)
- { $return = join ("", $item[2], @{$item[3]}) }
+production: delayed_production
+{ $gertie->expand_rule (@{$item{'delayed_production'}}) }
+
+delayed_production: quantified_rhs_symbol(s?) rule_prob_expr(?)
+{ $return = [$lhs, $item{'quantified_rhs_symbol(s?)'}, @{$item{'rule_prob_expr(?)'}}] }
+
+alternate_production: '|' production
+
+at_least_one_production: production alternate_production(s?)
+
+at_least_two_productions: delayed_production '|'
+{ $gertie->expand_rule (@{$item{'delayed_production'}}) }
+at_least_one_production
+
+grammar_symbol: 'start' | identifier agent_suffix(?)
+ { $return = join ("", $item{'identifier'}, @{$item{'agent_suffix(?)'}}) }
 agent_suffix: agent_prefix_symbol identifier
- { $return = $item[2].$item[3] }
+ { $return = join ("", @item{qw(agent_prefix_symbol identifier)}) }
 
 rhs_symbol: grammar_symbol
  | 'end'
- | <skip:'\s*'> '(' production '|' production(s /\s*\|\s*/) ')'
+ | '(' at_least_two_productions ')'
  | narrative_literal
  | afforded_narrative_literal
  | narrative_code
  | afforded_narrative_code
  | afforded_narrative_alias
 
-quantified_rhs_symbol: <skip:''> rhs_symbol quantifier(?)
-{ $return = join ("", $item[2], @{$item[3]}) }
+quantified_rhs_symbol: rhs_symbol quantifier(?)
+{ $return = join ("", $item{'rhs_symbol'}, @{$item{'quantifier(?)'}}) }
 
 narrative_literal: string_literal agent_label(?)
 narrative_code: embedded_code_block agent_label(?)
@@ -77,12 +92,16 @@ afforded_narrative_alias: string_literal '=>' grammar_symbol agent_label(?)
 quantifier: '?' | '*' | '+' | '{' m/\d*/ '}' | '{' m/\d*/ ',' m/\d*/ '}'
 
 rule_prob_expr: '(' expr ')'
- { $return = $item[2] }
+ { $return = $item{'expr'} }
 
 paren_expr: '(' expr ')'
  { $return = join ("", @item[1..3]) }
-expr: <leftop: product_expr '+' product_expr>
- { $return = join ("", @item[1..$#item]) }
-product_expr: <leftop: atom_expr '*' atom_expr>
- { $return = join ("", @item[1..$#item]) }
+expr: product_expr '+' expr
+ { warn "in expr: item=", Data::Dumper->new([\@item])->Dump;
+   $return = join ("", @item[1..$#item]) }
+ | product_expr
+product_expr: atom_expr '*' product_expr
+ { warn "in expr: item=", Data::Dumper->new([\@item])->Dump;
+   $return = join ("", @item[1..$#item]) }
+ | atom_expr
 atom_expr: identifier | numeric_constant | paren_expr
