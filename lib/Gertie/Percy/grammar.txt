@@ -1,4 +1,5 @@
-grammar: statement(s /;/)
+{ use Gertie; my $gertie = Gertie->new_gertie(); }
+grammar: statement(s /;/) { $return = $gertie }
 
 statement: empty_statement | declaration | rule
 empty_statement:
@@ -24,14 +25,16 @@ weight: '#weight' agent_label code_block
 rule: grammar_symbol '->' production(s /|/)
 production: quantified_rhs_symbol(s?) rule_prob_expr(?)
 
-grammar_symbol: <skip:''> identifier agent_label(?)
+grammar_symbol: 'start' | <skip:''> identifier agent_label(?)
 
 rhs_symbol: grammar_symbol
+ | 'end'
  | '(' production '|' production(s /|/) ')'
  | <skip:''> narrative_literal agent_label(?)
  | <skip:''> choice_narrative_literal agent_label(?)
  | <skip:''> narrative_code agent_label(?)
  | <skip:''> choice_narrative_code agent_label(?)
+ | <skip:''> choice_narrative_identifier agent_label(?)
 
 quantified_rhs_symbol: <skip:''> rhs_symbol quantifier(?)
 
@@ -39,6 +42,7 @@ narrative_literal: string_literal
 narrative_code: code_block
 choice_narrative_literal: <skip:''> string_literal '=>' string_literal
 choice_narrative_code: <skip:''> string_literal '=>' code_block
+choice_narrative_identifier: <skip:''> string_literal '=>' identifier
 
 quantifier: '?' | '*' | '+' | '{' m/\d*/ '}' | '{' m/\d*/ ',' m/\d*/ '}'
 
