@@ -11,9 +11,11 @@ my $failed = 0;
 
 $::RD_HINT = 1;
 
-my $grammar_file = abs_path("$FindBin::Bin/../lib/Gertie/Percy/grammar.txt");
+# text file
 my $text_file = abs_path("$FindBin::Bin/../t/turn-grammar");
 
+# At some point, move contents of $grammar_file to $Gertie::Percy::grammar
+my $grammar_file = abs_path("$FindBin::Bin/../lib/Gertie/Percy/grammar.txt");
 my $grammar = `cat $grammar_file`;
 
 my $parser = Parse::RecDescent->new ($grammar);
@@ -37,6 +39,8 @@ test_crucial (!$failed && ref($r0->gertie), "Gertie", "robin->gertie is a Gertie
 test (!$failed && $r0->gertie->has_symbol_index, 1, "Gertie is indexed");
 test (!$failed && $r0->gertie->n_rules, 1, "Gertie has one rule");
 test (!$failed && $r0->gertie->n_symbols, 4, "Gertie has four symbols");  # symbols are a,b,c,end
+test ($failed ? "" : $r0->gertie->to_string, "a -> b c;\n", "Gertie serializes to '$t0'");
+
 
 my $text = `cat $text_file`;
 #my $robin = $parser->grammar ($text);

@@ -20,10 +20,13 @@ use Graph::Directed;
 use Math::Symbolic;
 use Parse::RecDescent;
 
+# prefix for anonymous nonterminals
+my $anon_prefix = "__anon";
+
 # constructor
 sub new_gertie {
     my ($class, @args) = @_;
-    my $sym_regex = '[a-z][\w@]*\b';
+    my $sym_regex = '[a-z_][\w@]*\b';
     my $quant_regex = '[\?\*\+]|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\}';
     my $quantified_sym_regex = "$sym_regex(|$quant_regex)";
     my $self = AutoHash->new ( 'end' => "end",
@@ -243,6 +246,16 @@ sub add_symbols {
 	    $self->symbol_order->{$sym} = @{$self->symbol_list};
 	}
     }
+}
+
+sub new_anonymous_symbol {
+    my ($self) = @_;
+    my @anon = grep (/^$anon_prefix/, @{$self->symbol_list});
+    my %is_anon = map (($_ => 1), @anon);
+    my ($n, $sym);
+    for ($n = @anon + 1; defined($is_anon{$sym = $anon_prefix.$n}); ++$n) { }
+    $self->add_symbols ($sym);
+    return $sym;
 }
 
 # general, non-Chomsky context-free rules are broken down into Chomsky rules via intermediate nonterminals
