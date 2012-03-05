@@ -10,6 +10,7 @@ my @log;
 my $failed = 0;
 
 $::RD_HINT = 1;
+# $::RD_TRACE = 1;
 
 # text file
 my $text_file = abs_path("$FindBin::Bin/../t/turn-grammar");

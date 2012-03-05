@@ -30,7 +30,7 @@ preamble: '#preamble' code_or_quote { $robin->preamble_text ($item{'code_or_quot
 code_or_quote: embedded_code_block | string_literal
 embedded_code_block: code_block { $return = '%{'.$item{'code_block'}.'}%'; 1 }
 code_block: <perl_codeblock>
-string_literal: <perl_quotelike>
+string_literal: /(".*?(?<!\\)"|'.*?(?<!\\)')/
 
 prompt: '#prompt' code_or_quote
 <error: #prompt is not yet implemented>
@@ -38,7 +38,7 @@ prompt: '#prompt' code_or_quote
 agent_declaration: agent_keyword(?) agent_label agent_terminals
  { $gertie->declare_agent_ownership ($item{'agent_label'}, @{$item{'agent_terminals'}}); 1 }
 agent_keyword: '#agent'
-agent_label: agent_prefix_symbol(?) identifier { $return = $item{'identifier'}; 1 }
+agent_label: agent_prefix_symbol identifier { $return = $item{'identifier'}; 1 }
 agent_prefix_symbol: '@'
 agent_terminals: grammar_symbol(s)
 
@@ -74,8 +74,8 @@ agent_suffix: agent_prefix_symbol identifier
 rhs_symbol: grammar_symbol
  | 'end'
  | anonymous_alternation
- | anonymous_narrative_symbol agent_label(?)
-{ $return = join("", $item{'anonymous_narrative_symbol'}, @{$item{'agent_label(?)'}}); 1 }
+ | anonymous_narrative_symbol agent_suffix(?)
+{ $return = join("", $item{'anonymous_narrative_symbol'}, @{$item{'agent_suffix(?)'}}); 1 }
 
 anonymous_alternation:
  '(' delayed_production '|'
@@ -103,9 +103,7 @@ anonymous_narrative_symbol:
   $robin->narrative_text->{$return} = $item[1]->[1];
   1; }
 
-narrative_literal: string_literal
-narrative_code: embedded_code_block
-afforded_narrative_literal: choice_text '=>' narrative_text
+afforded_narrative_literal: choice_text '=>' narrative_literal
 { $return = [@item{qw(choice_text narrative_text)}]; 1 }
 afforded_narrative_code: choice_text '=>' narrative_code
 { $return = [@item{qw(choice_text narrative_code)}]; 1 }
@@ -113,7 +111,7 @@ afforded_narrative_alias: choice_text '=>' narrative_symbol
 { $return = [$item{'choice_text'}, $robin->narrative_text->{$item{'narrative_symbol'}}]; 1 }
 
 choice_text: string_literal
-narrative_text: string_literal
+narrative_literal: string_literal
 narrative_code: embedded_code_block
 narrative_symbol: grammar_symbol
 
