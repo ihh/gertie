@@ -12,7 +12,7 @@ grammar: statement_list eofile { $gertie->add_deferred_rules; $gertie->index; $r
 eofile: /^\Z/
 
 statement_list: statement additional_statement(s?) semicolon(?)
-statement: parameter_declaration | game_declaration | rule { $return = 1 }
+statement: parameter_declaration | game_declaration | rule
 additional_statement: semicolon statement
 semicolon: ';'
 
@@ -52,7 +52,7 @@ agent_strategy: '#strategy' agent_label ('mortal' | 'drunk' | 'greedy')
 <error: #strategy is not yet implemented>
 
 rule: quantified_lhs_symbol ('->' | ':') <commit>
- { $lhs = $item{'quantified_lhs_symbol'}; $return = 1 }
+ { $lhs = $item{'quantified_lhs_symbol'}; 1 }
  one_or_more_productions
 
 production: delayed_production
