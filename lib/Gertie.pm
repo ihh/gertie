@@ -1,6 +1,7 @@
 package Gertie;
 use Moose;
 use AutoHash;
+use Gertie::Percy;
 use Gertie::Inside;
 use Gertie::Outside;
 extends 'AutoHash';
@@ -8,7 +9,7 @@ extends 'AutoHash';
 use strict;
 
 # generic imports
-use Carp qw(carp croak cluck confess);
+use Carp;
 use Data::Dumper;
 use File::Temp;
 use Scalar::Util;
@@ -18,7 +19,6 @@ use Symbol qw(gensym);
 # specific imports
 use Graph::Directed;
 use Math::Symbolic;
-use Parse::RecDescent;
 
 # prefix for anonymous nonterminals
 my $anon_prefix = "__anon";
@@ -72,10 +72,15 @@ sub new_from_file {
 
 sub new_from_string {
     my ($class, $text, @args) = @_;
-    my $self = $class->new_gertie (@args);
-    my @text = split /\n/, $text;
-    $self->parse (@text);
-    $self->index();
+    my $self;
+    if ($Gertie::Percy::use_percy) {
+	$self = Gertie::Percy::new_gertie_from_string ($text, @args);
+    } else {
+	$self = $class->new_gertie (@args);
+	my @text = split /\n/, $text;
+	$self->parse (@text);
+	$self->index();
+    }
     return $self;
 }
 
@@ -101,6 +106,15 @@ sub parse {
 	$self->parse_line ($line);
     }
     $self->add_deferred_rules;
+}
+
+sub error {
+    my ($self, @text) = @_;
+    if (defined $self->{'error_log'}) {
+	&{$self->error_log} (@text);
+    } else {
+	confess @text;
+    }
 }
 
 sub parse_line {
@@ -130,7 +144,7 @@ sub parse_line {
 	# Convert "A->B C D E" into "A -> B.C.D E;  B.C.D -> B.C D;  B.C -> B C"
 	$rhs =~ s/^\s*(.*?)\s*$/$1/;
 	my @rhs = split /\s+/, $rhs;
-	confess "Parse error" unless @rhs >= 2;
+	$self->error ("Parse error") unless @rhs >= 2;
 	$self->expand_rule ($lhs, \@rhs, $prob);
     } elsif (/^\s*($lhs_regex)\s*\->((\s*$rhs_regex)*\s*($prob_regex)(\s*\|(\s*$rhs_regex)*\s*($prob_regex))*)\s*;?\s*$/) {  # Multiple right-hand sides (A->B C|D E|F) with optional probabilities
 	my ($lhs, $lhs_crap, $all_rhs) = ($1, $2, $3);
@@ -153,20 +167,21 @@ sub parse_line {
 
 sub declare_params {
     my ($self, $params, $nums) = @_;
-    confess "params (@$params) and values (@$nums) do not match in length" unless @$params == @$nums;
+    $self->error ("params (@$params) and values (@$nums) do not match in length") unless @$params == @$nums;
     push @{$self->pgroups}, $params;
     for my $n (0..$#$params) { $self->param->{$params->[$n]} = $nums->[$n] }
 }
 
 sub declare_agent_ownership {
     my ($self, $owner, @symbols) = @_;
+    warn "Declaring that agent $owner owns terminals (@symbols)" if $self->verbose > 10;
     push @{$self->agents}, $owner unless grep ($_ eq $owner, @{$self->agents});
     for my $sym (@symbols) { $self->term_owner_by_name->{$sym} = $owner }
 }
 
 sub expand_rule {
     my ($self, $lhs, $rhs, $prob) = @_;
-    confess "rhs must be an arrayref" unless ref($rhs) eq 'ARRAY';
+    $self->error ("rhs must be an arrayref") unless ref($rhs) eq 'ARRAY';
     warn "expanding lhs -> @$rhs ($prob)" if $self->verbose > 10;
     $self->foreach_agent ([$lhs, @$rhs],
 			  sub { my ($lhs, @rhs) = @_;
@@ -208,15 +223,15 @@ sub add_rule {
     if ($prob_is_func) {
 	my $f = Math::Symbolic::parse_from_string ($prob);
 	my @undef_param = grep (!defined($self->param->{$_}), $f->signature);
-	confess "Expression ($prob_is_func) has undefined parameters (@undef_param)" if @undef_param;
+	$self->error ("Expression ($prob_is_func) has undefined parameters (@undef_param)") if @undef_param;
     }
     warn "Adding Chomsky rule: $lhs -> $rhs1 $rhs2 ($prob)" if $self->verbose > 10;
     # Check the rule is valid
-    confess "Empty rule" unless defined($rhs1) && length($rhs1);
-    confess "Transformation of 'end'" if $lhs eq $self->end;  # No rules starting with 'end'
+    $self->error ("Empty rule") unless defined($rhs1) && length($rhs1);
+    $self->error ("Transformation of 'end'") if $lhs eq $self->end;  # No rules starting with 'end'
     $self->{'start'} = $lhs unless defined $self->{'start'};  # First named nonterminal is start
     return if !$prob_is_func && $prob == 0;  # Don't bother tracking zero-weight rules
-    confess "Negative probability" if !$prob_is_func && $prob < 0;  # Rule weights are nonnegative
+    $self->error ("Negative probability") if !$prob_is_func && $prob < 0;  # Rule weights are nonnegative
     # Be idempotent
     my $rule_index;
     if (exists $self->rule_index_by_name->{$lhs}->{$rhs1}->{$rhs2}) {
@@ -311,7 +326,7 @@ sub process_quantifiers {
 	    push @deferred_rule, [.5, $sym, $base];
 	} elsif ($sym =~ /^($sym_regex)\[(\d*),(\d*)\]$/) {
 	    my ($base, $min, $max) = ($1, $2, $3);
-	    confess "Bad quantifiers in nonterminal $sym" if (length($max) && $max < 0) || (length($min) && $min <= 0) || (length($max) && length($min) && $max < $min) || ($min eq "" && $max eq "");
+	    $self->error ("Bad quantifiers in nonterminal $sym") if (length($max) && $max < 0) || (length($min) && $min <= 0) || (length($max) && length($min) && $max < $min) || ($min eq "" && $max eq "");
 	    if (length $max) {
 		my $start = length($min) ? $min : 0;
 		my $count = $max + 1 - $start;
@@ -356,7 +371,7 @@ sub get_rule_prob {
 # Call index() after this method, to update all caches
 sub set_rule_prob {
     my ($self, $rule_index, $new_prob) = @_;
-    confess "Probability undefined" unless defined $new_prob;
+    $self->error ("Probability undefined") unless defined $new_prob;
     $self->rule->[$rule_index]->[3] = $new_prob;  # fields of rule are (lhs,rhs1,rhs2,prob,rule_index,prob_func)
 }
 
@@ -483,7 +498,7 @@ sub index_symbols {
     # do toposort
     if ($graph->is_cyclic) {
 	my @cycle = $graph->find_a_cycle;
-	confess "Transition graph is cyclic! e.g. ", join ("->", @cycle, $cycle[0]);
+	$self->error ("Transition graph is cyclic! e.g. ", join ("->", @cycle, $cycle[0]));
     }
     $self->{'sym_name'} = [reverse $graph->topological_sort];
     $self->{'sym_id'} = {map (($self->sym_name->[$_] => $_), 0..$#{$self->sym_name})};
@@ -503,7 +518,7 @@ sub index_symbols {
     $self->{'term_owner'} = {};
     while (my ($term_name, $owner) = each %{$self->term_owner_by_name}) {
 	my $term_id = $self->sym_id->{$term_name};
-	confess "Terminal $term_name not in grammar" unless defined $term_id;
+	$self->error ("Terminal $term_name not in grammar") unless defined $term_id;
 	$self->{'term_owner'}->{$term_id} = $owner;
     }
     my $agent_regex = $self->agent_regex;
@@ -516,7 +531,7 @@ sub index_symbols {
 		my $agent = $1;
 		if (defined $self->term_owner->{$term_id}) {
 		    if ($self->term_owner->{$term_id} ne $agent) {
-			confess "Tried to override automatic $agent-ownership of $term_name" if $self->verbose;
+			$self->error ("Tried to override automatic $agent-ownership of $term_name") if $self->verbose;
 		    }
 		} else {
 		    $self->term_owner->{$term_id} = $agent;
@@ -647,14 +662,14 @@ sub to_string {
 sub tokenize {
     my ($self, @seq) = @_;
     my @undefs = grep (!exists($self->sym_id->{$_}), @seq);
-    confess "Undefined symbols (@undefs)" if @undefs;
+    $self->error ("Undefined symbols (@undefs)") if @undefs;
     return map ($self->sym_id->{$_}, @seq);
 }
 
 # subroutine to compute Inside matrix for given tokenized prefix sequence
 sub prefix_Inside {
     my ($self, $tokseq, @args) = @_;
-    confess "tokseq must be a listref" unless defined($tokseq) && ref($tokseq) eq 'ARRAY';
+    $self->error ("tokseq must be a listref") unless defined($tokseq) && ref($tokseq) eq 'ARRAY';
     my $inside_class = $self->inside_class;
     eval ("require $inside_class");
     return $inside_class->new_Inside ($self, $tokseq, 'verbose' => 0, @args);
@@ -665,7 +680,7 @@ sub simulate_Chomsky {
     $lhs = $self->start_id unless defined $lhs;
     return [$self->sym_name->[$lhs]] if $self->is_term->{$lhs};
     my $rule_by_rhs1 = $self->rule_by_lhs_rhs1->{$lhs};
-    confess "Simulation error: lhs=", $self->sym_name->[$lhs] unless defined $rule_by_rhs1;
+    $self->error ("Simulation error: lhs=", $self->sym_name->[$lhs]) unless defined $rule_by_rhs1;
     my (@rhs, @prob);
     while (my ($rhs1, $rule_list) = each %$rule_by_rhs1) {
 	for my $rule (@$rule_list) {
@@ -793,7 +808,7 @@ sub counts_to_string {
 # update rule probabilities from a set of Inside-Outside counts
 sub update_rule_probs {
     my ($self, $rule_count) = @_;
-    confess "|rule_count|=", @$rule_count+0, " |rule|=", @{$self->rule}+0 unless @$rule_count == @{$self->rule};
+    $self->error ("|rule_count|=", @$rule_count+0, " |rule|=", @{$self->rule}+0) unless @$rule_count == @{$self->rule};
     my %param_count = map (($_ => 0), keys %{$self->param});
     for my $rule_index (0..$#{$self->rule}) {
 	my ($lhs, $rhs1, $rhs2, $prob, $prob_func) = @{$self->tokenized_rule->[$rule_index]};

@@ -60,6 +60,7 @@ sub test_parser {
 	for my $sym (@$sym_list, 'grammar') {
 	    my $expr = "\$p->$sym(\$t)";
 	    my $expr_eval = eval ($expr);
+	    if (!$failed && !defined $expr_eval) { $::RD_TRACE = 1; eval $expr; $::RD_TRACE = undef }
 	    test_crucial (!$failed && defined($expr_eval) ? 1 : 0, 1, "'$t' parsed to '$sym' in $grammar_file");
 	    $sym_eval{$sym} = $expr_eval;
 	}

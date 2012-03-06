@@ -1,21 +1,29 @@
-{
-  use Gertie;
+{ use Gertie;
   use Gertie::Robin;
   use Data::Dumper;
-  my $gertie = Gertie->new_gertie;
-  my $robin = Gertie::Robin->new_robin($gertie);
-  my ($lhs, @lhs_stack);   # @lhs_stack is needed for nested anonymous rules
+  my ($gertie, $robin);
+  my ($choice_text, $narrative_text);
+  my ($lhs, @lhs_stack);
   sub begin_lhs { push @lhs_stack, $lhs; $lhs = shift }
   sub end_lhs { $lhs = pop @lhs_stack }
-  my ($choice_text, $narrative_text);  # scratch variables
-}
-grammar: statement_list eofile { $gertie->add_deferred_rules; $gertie->index; $return = $robin; 1 }
+  1 }
+
+grammar:
+{ $gertie = Gertie->new_gertie (defined($arg{'gertie_args'}) ? @{$arg{'gertie_args'}} : ());
+  $robin = Gertie::Robin->new_robin ($gertie, defined($arg{'robin_args'}) ? @{$arg{'robin_args'}} : ());
+  1 }
+ statement_list eofile
+{ $gertie->add_deferred_rules;
+  $gertie->index;
+  $return = $robin;
+  1 }
 eofile: m/^\Z/
 
-statement_list: statement additional_statement(s?) semicolon(?)
+statement_list: comment(s?) statement comment(s?) additional_statement(s?) semicolon(?) comment(s?)
 statement: parameter_declaration | game_declaration | rule
-additional_statement: semicolon statement
+additional_statement: semicolon comment(s?) statement comment(s?)
 semicolon: ';'
+comment: '//' <resync>
 
 game_declaration: (preamble | prompt | agent_declaration | agent_model | agent_weight | agent_strategy)
 
@@ -41,7 +49,7 @@ agent_declaration: agent_keyword(?) agent_label agent_terminals
 agent_keyword: '#agent'
 agent_label: agent_prefix_symbol identifier { $return = $item{'identifier'}; 1 }
 agent_prefix_symbol: '@'
-agent_terminals: grammar_symbol(s)
+agent_terminals: grammar_symbol(s?)
 
 agent_model: '#model' agent_label grammar_symbol
 <error: #model is not yet implemented>
@@ -61,7 +69,7 @@ narrative_rule:
   $robin->{'choice_text'}->{$item{'lhs_symbol'}} = $choice_text;
   $robin->{'narrative_text'}->{$item{'lhs_symbol'}} = $narrative_text;
   $return = $item{'lhs_symbol'};
-  1; }
+  1 }
 
 generic_rule:
  quantified_lhs_symbol rule_op
@@ -70,20 +78,23 @@ generic_rule:
 { $return = $lhs; end_lhs(); 1 }
 
 production: delayed_production
-{ $gertie->expand_rule ($lhs, @{$item{'delayed_production'}}); 1 }
+{ $gertie->expand_rule ($lhs, @{$item{'delayed_production'}}) if defined $gertie; 1 }
 
-delayed_production: quantified_rhs_symbol(s?) rule_prob_expr(?)
+delayed_production: comment(s?) quantified_rhs_symbol(s?) rule_prob_expr(?)
 { $return = [$item{'quantified_rhs_symbol(s?)'}, @{$item{'rule_prob_expr(?)'}}]; 1 }
 
-alternate_production: '|' production
+alternate_production: comment(s?) '|' production
 
 one_or_more_productions:
  production alternate_production(s?)
 
 grammar_symbol: 'start' | identifier agent_suffix(?)
  { $return = join ("", $item{'identifier'}, @{$item{'agent_suffix(?)'}}); 1 }
-agent_suffix: agent_prefix_symbol identifier
- { $return = join ("", @item{qw(agent_prefix_symbol identifier)}); 1 }
+agent_suffix: agent_prefix_symbol agent_identifier
+ { $return = join ("", @item{qw(agent_prefix_symbol agent_identifier)}); 1 }
+
+agent_identifier: identifier | positive_integer
+positive_integer: m/[1-9]\d*/
 
 rhs_symbol: 'end'
  | nested_rule
@@ -104,7 +115,7 @@ anonymous_alternation:
  one_or_more_productions ')'
 { $return = $lhs; end_lhs(); 1 }
 
-quantified_rhs_symbol: rhs_symbol quantifier(?)
+quantified_rhs_symbol: rhs_symbol quantifier(?) comment(s?)
 { $return = join ("", $item{'rhs_symbol'}, @{$item{'quantifier(?)'}}); 1 }
 
 lhs_symbol: grammar_symbol
@@ -118,7 +129,7 @@ anonymous_narrative_symbol: narrative_term agent_suffix(?)
   ($choice_text, $narrative_text) = @{$item{'narrative_term'}};
   $robin->choice_text->{$return} = $choice_text;
   $robin->narrative_text->{$return} = $narrative_text;
-  1; }
+  1 }
 
 narrative_term:
  afforded_narrative_literal
@@ -147,9 +158,13 @@ narrative_code: embedded_code_block
 narrative_symbol: grammar_symbol
 choice_text: string_literal
 
-quantifier: '?' | '*' | '+' | '[' m/\d*/ ']' | '[' m/\d*/ ',' m/\d*/ ']'
+quantifier: '?' | '*' | '+'
+ | '[' m/\d*/ ']'
+{ join ("", @item[1..3]) }
+ | '[' m/\d*/ ',' m/\d*/ ']'
+{ join ("", @item[1..5]) }
 
-rule_prob_expr: '(' expr ')'
+rule_prob_expr: numeric_constant | '(' expr ')'
  { $return = $item{'expr'}; 1 }
 
 paren_expr: '(' expr ')'
