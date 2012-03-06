@@ -27,7 +27,7 @@ my $anon_prefix = "__anon";
 sub new_gertie {
     my ($class, @args) = @_;
     my $sym_regex = '[a-z_][\w@]*\b';
-    my $quant_regex = '[\?\*\+]|\{\d+,\d*\}|\{\d*,\d+\}|\{\d+\}';
+    my $quant_regex = '[\?\*\+]|\[\d+,\d*\]|\[\d*,\d+\]|\[\d+\]';
     my $quantified_sym_regex = "$sym_regex(|$quant_regex)";
     my $self = AutoHash->new ( 'end' => "end",
 			       'rule' => [],  # fields are (lhs,rhs1,rhs2,prob,rule_index,prob_func)
@@ -294,12 +294,12 @@ sub process_quantifiers {
     # ...also so we give the input file a chance to define its own probabilities, parameterizations etc.
     my (@sym_ret, @deferred_rule);
     for my $sym (@sym) {
-	$sym =~ s/\{(\d+)\}$/\{$1,$1\}/;  # Convert X{N} into X{N,N}
-	$sym =~ s/\{0?,1\}$/?/;  # Convert X{0,1} into X?
-	$sym =~ s/\{0?,\}$/*/;   # Convert X{0,} into X*
-	$sym =~ s/\{1,1\}$//;   # Convert X{1,1} into X
-	$sym =~ s/\{1,\}$/+/;   # Convert X{1,} into X+
-	$sym =~ s/\{0,(\d+)\}$/{,$1}/;  # Convert X{0,N} into X{,N}
+	$sym =~ s/\[(\d+)\]$/\[$1,$1\]/;  # Convert X[N] into X[N,N]
+	$sym =~ s/\[0?,1\]$/?/;  # Convert X[0,1] into X?
+	$sym =~ s/\[0?,\]$/*/;   # Convert X[0,] into X*
+	$sym =~ s/\[1,1\]$//;   # Convert X[1,1] into X
+	$sym =~ s/\[1,\]$/+/;   # Convert X[1,] into X+
+	$sym =~ s/\[0,(\d+)\]$/[,$1]/;  # Convert X[0,N] into X[,N]
 	push @sym_ret, $sym;
 	if ($sym =~ /^($sym_regex)\?$/) {
 	    push @deferred_rule, [.5, $sym, $1];
@@ -311,7 +311,7 @@ sub process_quantifiers {
 	    my $base = $1;
 	    push @deferred_rule, [.5, $sym, $base, $sym];
 	    push @deferred_rule, [.5, $sym, $base];
-	} elsif ($sym =~ /^($sym_regex)\{(\d*),(\d*)\}$/) {
+	} elsif ($sym =~ /^($sym_regex)\[(\d*),(\d*)\]$/) {
 	    my ($base, $min, $max) = ($1, $2, $3);
 	    confess "Bad quantifiers in nonterminal $sym" if (length($max) && $max < 0) || (length($min) && $min <= 0) || (length($max) && length($min) && $max < $min) || ($min eq "" && $max eq "");
 	    if (length $max) {

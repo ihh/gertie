@@ -15,24 +15,33 @@ use Scalar::Util;
 use IPC::Open3;
 use Symbol qw(gensym);
 
-# constructor
-sub new_parser {
-    my ($class, @args) = @_;
+# package data
+our ($grammar_file, $grammar) = libdir_file_path_and_contents ("Gertie/Percy/grammar.txt");
 
-    my $self = AutoHash->new ( # ...
-			       @args );
-    bless $self, $class;
-    return $self;
+# parser
+sub new_parser {
+    return Parse::RecDescent->new ($grammar);
 }
 
 # parse method
 sub parse {
     my ($self, @text) = @_;
-    # ...
+    my $text = join ("", @text);
+    my $parser = new_parser();
+    return $parser->grammar ($text);
 }
 
-# grammar
-$grammar = <<END;
-END
+# load method
+sub libdir_file_path_and_contents {
+    my ($filename) = @_;
+    my $full_path;
+    for my $inc (@INC) {
+	if (-e ($full_path = "$inc/$filename")) {
+	    my @contents = `cat $full_path`;
+	    return ($full_path, join("",@contents));
+	}
+    }
+    return (undef, undef);
+}
 
 1;

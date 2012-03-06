@@ -4,7 +4,7 @@ use Cwd qw(abs_path);
 use FindBin;
 use lib abs_path("$FindBin::Bin/../lib");
 
-use Parse::RecDescent;
+use Gertie::Percy;
 
 my @log;
 my $failed = 0;
@@ -16,11 +16,11 @@ $::RD_HINT = 1;
 my $text_file = abs_path("$FindBin::Bin/../t/turn-grammar");
 
 # At some point, move contents of $grammar_file to $Gertie::Percy::grammar
-my $grammar_file = abs_path("$FindBin::Bin/../lib/Gertie/Percy/grammar.txt");
-my $grammar = `cat $grammar_file`;
+my $grammar_file = $Gertie::Percy::grammar_file;
+my $grammar = $Gertie::Percy::grammar;
 
-my $parser = Parse::RecDescent->new ($grammar);
-test_crucial (!$failed && defined($parser)?1:0, 1, "Parse::RecDescent initialized from $grammar_file");
+my $parser = Gertie::Percy::new_parser;
+test_crucial (!$failed && defined($parser)?1:0, 1, "Gertie::Percy initialized from $grammar_file");
 my @basic = ("a" => "identifier",
 	     "1" => "numeric_constant",
 	     '"blurgh"' => "string_literal",
@@ -56,7 +56,7 @@ sub test_parser {
     my ($text_list, $sym_list, $rules, $symbols, $test_serialization) = @_;
     for my $t (@$text_list) {
 	my %sym_eval;
-	my $p = Parse::RecDescent->new ($grammar);
+	my $p = Gertie::Percy::new_parser;
 	for my $sym (@$sym_list, 'grammar') {
 	    my $expr = "\$p->$sym(\$t)";
 	    my $expr_eval = eval ($expr);

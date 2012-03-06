@@ -52,7 +52,7 @@ agent_weight: '#weight' agent_label code_block
 agent_strategy: '#strategy' agent_label ('mortal' | 'drunk' | 'greedy')
 <error: #strategy is not yet implemented>
 
-rule_op: '->' | ':'
+rule_op: '->'
 rule: narrative_rule | generic_rule
 
 narrative_rule:
@@ -60,12 +60,14 @@ narrative_rule:
 { ($choice_text, $narrative_text) = @{$item{'narrative_term'}};
   $robin->{'choice_text'}->{$item{'lhs_symbol'}} = $choice_text;
   $robin->{'narrative_text'}->{$item{'lhs_symbol'}} = $narrative_text;
+  $return = $item{'lhs_symbol'};
   1; }
 
 generic_rule:
  quantified_lhs_symbol rule_op
-{ $lhs = $item{'quantified_lhs_symbol'}; 1 }
+{ begin_lhs ($item{'quantified_lhs_symbol'}); 1 }
  one_or_more_productions
+{ $return = $lhs; end_lhs(); 1 }
 
 production: delayed_production
 { $gertie->expand_rule ($lhs, @{$item{'delayed_production'}}); 1 }
@@ -83,11 +85,15 @@ grammar_symbol: 'start' | identifier agent_suffix(?)
 agent_suffix: agent_prefix_symbol identifier
  { $return = join ("", @item{qw(agent_prefix_symbol identifier)}); 1 }
 
-rhs_symbol: grammar_symbol
- | 'end'
+rhs_symbol: 'end'
+ | nested_rule
  | anonymous_alternation
  | anonymous_narrative_symbol agent_suffix(?)
 { $return = join("", $item{'anonymous_narrative_symbol'}, @{$item{'agent_suffix(?)'}}); 1 }
+ | grammar_symbol
+
+nested_rule: '(' rule ')'
+{ $return = $item{'rule'}; 1 }
 
 anonymous_alternation:
  '(' delayed_production '|'
@@ -119,23 +125,29 @@ narrative_term:
  | narrative_code
  | afforded_narrative_code
  | afforded_narrative_alias
+ | affordance_aliased_narrative_literal
+ | affordance_aliased_narrative_code
  | basic_narrative_literal
 
 basic_narrative_literal: narrative_literal
-{ $return = [@item[1,1]]; 1 }
+{ $return = [@item{qw(narrative_literal narrative_literal)}]; 1 }
 afforded_narrative_literal: choice_text '=>' narrative_literal
 { $return = [@item{qw(choice_text narrative_literal)}]; 1 }
 afforded_narrative_code: choice_text '=>' narrative_code
 { $return = [@item{qw(choice_text narrative_code)}]; 1 }
 afforded_narrative_alias: choice_text '=>' narrative_symbol
 { $return = [$item{'choice_text'}, $robin->{'narrative_text'}->{$item{'narrative_symbol'}}]; 1 }
+affordance_aliased_narrative_literal: narrative_symbol '=>' narrative_literal
+{ $return = [$robin->{'choice_text'}->{$item{'narrative_symbol'}}, $item{'narrative_literal'}]; 1 }
+affordance_aliased_narrative_code: narrative_symbol '=>' narrative_code
+{ $return = [$robin->{'choice_text'}->{$item{'narrative_symbol'}}, $item{'narrative_code'}]; 1 }
 
 narrative_literal: string_literal
 narrative_code: embedded_code_block
 narrative_symbol: grammar_symbol
 choice_text: string_literal
 
-quantifier: '?' | '*' | '+' | '{' m/\d*/ '}' | '{' m/\d*/ ',' m/\d*/ '}'
+quantifier: '?' | '*' | '+' | '[' m/\d*/ ']' | '[' m/\d*/ ',' m/\d*/ ']'
 
 rule_prob_expr: '(' expr ')'
  { $return = $item{'expr'}; 1 }
