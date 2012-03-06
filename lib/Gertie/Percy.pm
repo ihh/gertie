@@ -24,6 +24,7 @@ sub new_parser {
 }
 
 # parse method
+# returns object of type Gertie::Robin
 sub parse {
     my ($self, @text) = @_;
     my $text = join ("", @text);

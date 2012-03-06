@@ -67,10 +67,7 @@ sub new_gertie {
 
 sub new_from_file {
     my ($class, $filename, @args) = @_;
-    my $self = $class->new_gertie (@args);
-    $self->parse_files ($filename);
-    $self->index();
-    return $self;
+    return $class->new_from_string (file_contents ($filename), @args);
 }
 
 sub new_from_string {
@@ -82,17 +79,18 @@ sub new_from_string {
     return $self;
 }
 
-# Read grammar file(s)
-sub parse_files {
-    my ($self, @filename) = @_;
+sub file_contents {
+    my @filename = @_;
     local *FILE;
     local $_;
+    my @text;
     for my $filename (@filename) {
 	open FILE, "<$filename" or confess "Can't open '$filename': $!";
-	my @text = <FILE>;
+	my @file_text = <FILE>;
 	close FILE;
-	$self->parse (@text);
+	push @text, @file_text;
     }
+    return join ("", @text);
 }
 
 sub parse {
