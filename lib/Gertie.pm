@@ -36,8 +36,8 @@ sub new_gertie {
 			       'pgroups' => [],
 			       'param' => {},
 
-			       'choice_text' => undef,
-			       'narrative_text' => undef,
+			       'choice_text' => {},
+			       'narrative_text' => {},
 			       'preamble_text' => "",
 
 			       'symbol_order' => {},
@@ -610,9 +610,11 @@ sub index_rules {
 
 # subroutine to print grammar
 sub to_string {
-    my ($self, $choice, $narrative) = @_;
+    my ($self) = @_;
     my @text;
     my $fmt = '%.' . $self->output_precision . 'g';
+    if (defined $self->preamble_text) {
+    }
     if (@{$self->agents} > 1) {
 	for my $agent (@{$self->agents}) {
 	    my @term = grep (!/\@$agent$/,
@@ -637,26 +639,7 @@ sub to_string {
 	next if $lhs =~ /\./;  # don't print rules added by Chomsky-fication
 	next if $lhs eq $self->end;  # don't mess around with 'end' nonterminal
 	my $lhs_id = $self->sym_id->{$lhs};
-	if ($self->is_term->{$lhs_id}) {
-	    my $choice_text = defined($choice) ? $choice->{$lhs} : "";
-	    $choice_text = "" unless defined $choice_text;
-	    my $narrative_text = defined($narrative) ? $narrative->{$lhs} : "";
-	    $narrative_text = "" unless defined $narrative_text;
-	    if (length($choice_text) || length($narrative_text)) {
-		$choice_text =~ s/(?<!\\)"/\\"/g;
-#		$choice_text =~ s/(?<!\\)'/\\'/g;
-		$choice_text =~ s/\n/\\n/g;
-		$narrative_text =~ s/^\%(.*)\%$/$1/;
-		unless ($narrative_text =~ /^\{.*\}$/) {
-		    $narrative_text =~ s/(?<!\\)"/\\"/g;
-#		    $narrative_text =~ s/(?<!\\)'/\\'/g;
-		    $narrative_text =~ s/\n/\\n/g;
-		}
-		my $choice = length($choice_text) ? "\"$choice_text\" => " : "";
-		push @text, "$lhs -> $choice\"$narrative_text\";\n";
-	    }
-	    next;
-	}
+	next if $self->is_term->{$lhs_id};
 	my @rhs1 = map ($self->sym_name->[$_], keys %{$self->rule_by_lhs_rhs1->{$lhs_id}});
 	for my $rhs1 (sort @rhs1) {
 	    my $rhs1_id = $self->sym_id->{$rhs1};
@@ -678,7 +661,28 @@ sub to_string {
 	    }
 	}
     }
+
+    for my $term (@{$self->term_name}) {
+	my $choice_text = quote_text ($self->choice_text->{$term});
+	my $narrative_text = quote_text ($self->narrative_text->{$term});
+	if (length($choice_text) || length($narrative_text)) {
+	    my $choice = length($choice_text) ? "$choice_text => " : "";
+	    push @text, "$term: $choice$narrative_text;\n";
+	}
+    }
+
     return join ("", @text);
+}
+
+sub quote_text {
+    my ($text) = @_;
+    $text = "" unless defined $text;
+    $text =~ s/^\%(.*)\%$/$1/;
+    unless ($text =~ /^\{.*\}$/) {
+	$text =~ s/(?<!\\)"/\\"/g;
+	$text =~ s/\n/\\n/g;
+    }
+    return length($text) ? "\"$text\"" : "";
 }
 
 # subroutine to tokenize a sequence

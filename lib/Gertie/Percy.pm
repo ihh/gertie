@@ -27,9 +27,12 @@ sub new_parser {
 # parse method
 # returns object of type Gertie
 sub parse {
-    my ($text, @args) = @_;
+    my ($text, %arg) = @_;
     my $parser = new_parser();
-    return $parser->grammar ($text, 1, @args);
+    $::RD_TRACE = 1 if defined $arg{'trace'};
+    my $grammar = $parser->grammar ($text, 1, %arg);
+    $::RD_TRACE = undef;
+    return $grammar;
 }
 
 # parse wrappers
@@ -42,8 +45,8 @@ sub new_gertie_from_string {
     my ($text, @args) = @_;
     my $gertie = parse ($text, 'gertie_args' => \@args);
     unless (defined($gertie) && ref($gertie) eq 'Gertie') {
-	$::RD_TRACE = 1;
-	$gertie = parse($text);
+	warn "Text:\n", $text, "\n";
+	$gertie = parse ($text, 'trace' => 1);
 	confess "Parse failed: return value undefined" unless defined($gertie);
 	confess "Parse failed: returned $gertie";
     }

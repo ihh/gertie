@@ -45,10 +45,10 @@ test_parser ([$t0, $t1, $ts, $t_rp],
 	     1, 4,  # rules, symbols
 	     1);  # test serialization
 
-my $t_nl = 'a -> "blurgh"';
-my $t_anl = 'a -> "ug"=>"blurgh"';
-my $t_anc = 'a -> "ug"=>{"blurgh"}';
-my $t_ane = 'a -> "ug"=>start';
+my $t_nl = 'a : "blurgh"';
+my $t_anl = 'a : "ug"=>"blurgh"';
+my $t_anc = 'a : "ug"=>{"blurgh"}';
+my $t_ane = 'a : "ug"=>start';
 test_parser ([$t_nl, $t_anl, $t_anc, $t_ane],
 	     [qw(narrative_rule rule statement statement_list)],
 	     0, 2,  # rules, symbols

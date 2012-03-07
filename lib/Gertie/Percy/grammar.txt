@@ -38,7 +38,7 @@ parameter_declaration: param_keyword(?) '(' param_list ')' '=' '(' value_list ')
 param_keyword: '#param'
 param_list: identifier(s /\s*,\s*/)
 value_list: numeric_constant(s /\s*,\s*/)
-identifier: m/[a-z]\w*/
+identifier: m/[a-z_]\w*/
 numeric_constant: m/[0-9\.e\+\-]+/
 
 preamble: '#preamble' code_or_quote { $gertie->preamble_text ($item{'code_or_quote'}); 1 }
@@ -46,7 +46,7 @@ code_or_quote: embedded_code_block | string_literal
 embedded_code_block: code_block { $return = '%'.$item{'code_block'}.'%'; 1 }
 code_block: <perl_codeblock>
 string_literal: m/\s*(".*?(?<!\\)"|'.*?(?<!\\)')\s*/
-{ $return = $item[1]; $return =~ s/^["'](.*)['"]$/$1/; 1 }
+{ $return = $item[1]; $return =~ s/^\s*["'](.*)['"]\s*$/$1/; 1 }
 
 prompt: '#prompt' code_or_quote
 <error: #prompt is not yet implemented>
@@ -67,11 +67,10 @@ agent_weight: '#weight' agent_label code_block
 agent_strategy: '#strategy' agent_label ('mortal' | 'drunk' | 'greedy')
 <error: #strategy is not yet implemented>
 
-rule_op: '->'
 rule: narrative_rule | generic_rule
 
 narrative_rule:
- lhs_symbol rule_op narrative_term
+ lhs_symbol ':' narrative_term
 { ($choice_text, $narrative_text) = @{$item{'narrative_term'}};
   $gertie->{'choice_text'}->{$item{'lhs_symbol'}} = strip_meta ($choice_text);
   $gertie->{'narrative_text'}->{$item{'lhs_symbol'}} = strip_meta ($narrative_text);
@@ -79,7 +78,7 @@ narrative_rule:
   1 }
 
 generic_rule:
- quantified_lhs_symbol rule_op
+ quantified_lhs_symbol '->'
 { begin_lhs ($item{'quantified_lhs_symbol'}); 1 }
  one_or_more_productions
 { $return = $lhs; end_lhs(); 1 }

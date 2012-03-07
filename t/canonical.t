@@ -66,5 +66,31 @@ test_canonical ('a->b+ c[,3] d[,4] e[1,4] f* g?',
 		$g2t,
 		"Canonical form of grammar with quantifiers");
 
+my $gn = <<END;
+a -> b __anon1;
+b -> __anon2 (0.5);
+b -> __anon3 (0.5);
+__anon1: "It is now!" => "It is now!";
+__anon2: "They think it's all over" => "They think it's all over";
+__anon3: "Is this the end?" => "Is this the end?";
+END
+test_canonical ("a -> b \"It is now!\"; b -> \"They think it's all over\" | \"Is this the end?\";",
+		$gn,
+		"Canonical form of grammar with narrative string literals");
+
+# this test enshrines the unfortunate side-effect of anonymous alternations & narrative terminals
+# whereby the ordering of nonterminals gets perturbed (so 'a' is not the first nonterminal output)
+my $gn2 = <<END;
+__anon2 -> __anon1 (0.5);
+__anon2 -> __anon3 (0.5);
+a -> __anon2 __anon4;
+__anon1: "They think it's all over" => "They think it's all over";
+__anon3: "Is this the end?" => "Is this the end?";
+__anon4: "It is now!" => "It is now!";
+END
+test_canonical ("a -> (\"They think it's all over\" | \"Is this the end?\") \"It is now!\";",
+		$gn2,
+		"Canonical form of grammar with anonymous alternation and narrative string literals");
+
 
 dump_log();
