@@ -1,9 +1,8 @@
-// We need to start by declaring that there are two agents playing this game
-// The first agent is always the player
-@p;  // grammar symbols ending in '@p' belong to the player
-@c;  // grammar symbols ending in '@c' belong to the computer narrator
+@p;
+@c;
 
-// Now the structure
+#preamble { $$someone_has="Someone's"; "The Story of Goldilocks\n" };
+
 story ->
 introduction@c goldilocks@p goldilocks_main@c
 | introduction@c punkilocks@p punkilocks_main@c;
@@ -57,4 +56,53 @@ tmm -> tell_me_more@p;
 description_of_punkilocks@p -> tell_me_about_punkilocks@p she_had_pink_hair@c;
 description_of_trashed_kitchen@p -> tell_me_about_the_mess@p she_smashed_the_bowls@c;
 
-// TODO: another eval, e.g. %[...]% instead of ${...}%, can be used to compute weights for importance sampling
+actually_it_was_dad@c -> "Actually, you're right; it was Dad who made the porridge, in the Bear House.\nSome mornings he even cooked eggs and bacon. But not this time...\n\n";
+along_came_a_little_girl_named@c -> "Then, along came a little girl, named....\n";
+along_comes_goldilocks@c -> "Yes! Along came a little girl named Goldilocks.\nShe smelled the porridge, pushed open the door of the bear's house, and walked inside.\n\n";
+along_comes_punkilocks@c -> "Yes! Along came a girl named Punkilocks.\nShe saw the porridge through the bears' window, and decided to go inside.\n\n";
+bears_beds@c -> "Then the bears went into the bedrooms.\nDaddy Bear said, \"$$someone_has been sleeping in my bed.\"\nMummy Bear said, \"$$someone_has been sleeping in MY bed.\"\nBaby Bear said, \"$$someone_has been sleeping in my bed, and there she is now!\"\n\n";
+bears_bowls@c -> "Then the bears noticed the smashed bowls on the floor.\nDaddy Bear said, \"$$someone_has been smashing our bowls.\"\nMummy Bear said, \"$$someone_has been spitting on the floor.\"\nBaby Bear said, \"$$someone_has been throwing porridge all over the place!\"\n\n";
+bears_chairs@c -> "Then the bears went over to the chairs.\nDaddy Bear said, \"$$someone_has been sitting in my chair.\"\nMummy Bear said, \"$$someone_has been sitting in MY chair.\"\nBaby Bear said, \"$$someone_has been sitting in my chair, and they broke it in pieces!\"\n\n";
+bears_graffiti@c -> "Then the bears saw the writing on the wall by the stairs.\nDaddy Bear said, \"$$someone_has been using my pen.\"\nMummy Bear said, \"$$someone_has been writing on my wall.\"\nBaby Bear said, \"$$someone_has been in my house, and her name is PUNKILOCKS!\"\n%{$$someone_has = \"Punkilocks has\"; \"\"}%\\n\n";
+bears_home@c -> "A little while later, the three bears came home.\n\n";
+bears_porridge@c -> "The three bears went into the kitchen.\nDaddy Bear said, \"$$someone_has been eating my porridge.\"\nMummy Bear said, \"$$someone_has been eating MY porridge.\"\nBaby Bear said, \"$$someone_has been eating my porridge, and they ate it all up!\"\n\n";
+bears_window@c -> "A little while later, the three bears came home\nand noticed the smashed window of their house.\n\n";
+bike_smashes_window@c -> "Punkilocks never went anywhere without her bike.\nThat morning she was riding in the woods.\nShe was in just the mood to eat porridge for breakfast.\n\nPunkilocks revved up the motorbike, as far as it would go.\nThen, she rode straight at the window, smashing it!\nGlass went everywhere, all over the kitchen floor.\nQuickly, she hid her bike under the stairs.\n\n";
+er_well_yes@c -> "Er, well... yes, they all had separate rooms.\n\n";
+every_morning_mum_made_porridge@c -> "Every morning, Mummy Bear made them all porridge for breakfast.\n\n";
+girl_beds@p -> "She goes to bed" => "$$hero felt sleepy, so she went into the upstairs bedrooms.\nFirst, she tried Mummy Bear's bed, but it was too soft.\nNext, she tried Daddy Bear's bed, but it was too hard.\nNext, she tried Baby Bear's bed, and it was just right.\nSo she lay down in Baby Bear's bed; and soon, she fell asleep.\n\n";
+girl_chairs@p -> "She sits down" => "After eating, $$hero felt like sitting down.\nFirst, she tried Mummy Bear's rocking chair, but it rocked too slow.\nNext, she tried Daddy Bear's rocking chair, but it rocked too fast.\nNext, she tried Baby Bear's rocking chair, and it was just right.\nSo she rocked and rocked, until the little chair broke!\n\n";
+goldilocks@p -> "Goldilocks" => "\"Goldilocks!\" %{ $$hero = \"Goldilocks\"; \"\" }%\n\n";
+goldilocks_ending@c -> "And the three bears never saw Goldilocks ever again.\n\nTHE END\n\n";
+goldilocks_escapes@c -> "When Baby Bear said that, Goldilocks woke up, and saw the three bears standing there.\nShe got out of bed and ran downstairs, out of the house and out of the woods, as fast as she could!\n\n";
+goldilocks_porridge@p -> "Goldilocks eats porridge" => "Goldilocks went into the kitchen.\nFirst, she tried Mummy Bear's porridge; but it was too cold.\nNext, she tried Daddy Bear's porridge; but it was too hot.\nNext, she tried Baby Bear's porridge; and it was just right.\nSo Goldilocks ate Baby Bear's porridge. She ate and ate, until she ate it all up!\n\n";
+how_did_she_get_there@p -> "How did she get there?" => "\"How did she get there?\" you ask.\n\n";
+once_upon_a_time_there_were_3_bears@c -> "Once upon a time, there were three bears: Mummy Bear, Daddy Bear and Baby Bear.\nThey all lived in a house in the woods.\n\n";
+one_morning_the_porridge_was_too_hot_so_they_went_for_a_walk@c -> "One morning, the porridge was too hot, so they all went for a walk until it cooled down.\n\n";
+punkilocks@p -> "Punkilocks" => "\"Punkilocks!\" %{ $$hero = \"Punkilocks\"; \"\" }%\n\n";
+punkilocks_bowls@p -> "She smashes the bowls" => "In disgust, Punkilocks smashed the bowls on the floor.\n\n";
+punkilocks_ending@c -> "And Punkilocks never saw the three bears ever again.\n\nTHE END\n\n";
+punkilocks_escapes_on_bike@c -> "She grabbed her bike from under the stairs, and rode it away as fast as she could!\n";
+punkilocks_escapes_on_foot@c -> "She kicked the front door open and ran away as fast as she could!\n";
+punkilocks_graffiti@p -> "She writes on the wall" => "Next, Punkilocks went upstairs.\nShe decided to write some graffiti on the wall.\nShe wrote her name, \"PUNKILOCKS!\", in big pink letters.\n\n";
+punkilocks_party@p -> "She dances a crazy dance" => "Crazy, happy, Punkilocks danced in the bears' kitchen.\nShe trampled on the glass. She left shards of glass, all over the floor.\n\n";
+punkilocks_porridge@p -> "She eats the porridge" => "First, Punkilocks tried Mummy Bear's porridge, but it was too cold, so she spat it on the floor.\nNext, she tried Daddy Bear's porridge, but it was too hot, so she spat it at the wall.\nNext, she tried Baby Bear's porridge, and it was just right.\nSo Punkilocks ate Baby Bear's porridge. She ate as fast as she could, until she ate it all up!\n\n";
+punkilocks_screams@c -> "When Baby Bear said that, Punkilocks woke up,\nsaw the three bears standing there, and shouted \"BLEURGH!!!!!\"\nShe tore off the sheets and ran down the stairs,\nkicking toys out of her way.\n";
+punkilocks_smashes_window@c -> "Punkilocks saw the porridge through the window, and decided to eat it.\nShe smashed the window and climbed into the house.\n\n";
+really_mum_and_not_dad@p -> "Are you sure that's how it went? Mum made the breakfast?" => "\"Really? Mum made the breakfast, and not Dad?\"\n\n";
+she_had_pink_hair@c -> "She had pink hair, a leather jacket and a mean look.\n\n";
+she_smashed_the_bowls@c -> "Angrily, Punkilocks smashed the bowls on the floor.\n\n";
+surely_dad@p -> "It MUST have been Dad." => "\"It MUST have been Dad who made the breakfast, surely.\"\n\n";
+tell_me_about_punkilocks@p -> "What did she look like?" => "\"What did Punkilocks look like?\" you ask.\n\n";
+tell_me_about_the_bedrooms@p -> "Tell me about the bedrooms" => "\"Tell me about the bedrooms.\"\n\n";
+tell_me_about_the_chairs@p -> "Tell me about the chairs" => "\"Tell me about the chairs.\"\n\n";
+tell_me_about_the_house@p -> "Tell me about the house" => "\"Tell me about the house.\"\n\n";
+tell_me_about_the_kitchen@p -> "Tell me about the kitchen" => "\"Tell me about the kitchen.\"\n\n";
+tell_me_about_the_mess@p -> "Tell me about the mess" => "\"Tell me about the mess in the kitchen.\"\n\n";
+tell_me_more@p -> "Tell me more of the story" => "";
+thats_right@c -> "That's right.\n\n";
+there_were_3@c -> "There were three bedrooms, one for each bear.\n\n";
+there_were_3_bowls_and_3_places@c -> "There were three bowls, and three places at the tiny kitchen table.\n\n";
+they_all_slept_in_separate_bedrooms@p -> "They each had their own room?" => "\"Did the bears each have their own room?\"\n\n";
+they_had_3_rocking_chairs@c -> "They had three rocking chairs, one for each bear.\n\n";
+what_about_the_house@c -> "What would you like to know about the house?\n\n";

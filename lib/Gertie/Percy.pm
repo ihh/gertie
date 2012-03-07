@@ -25,7 +25,7 @@ sub new_parser {
 }
 
 # parse method
-# returns object of type Gertie::Robin
+# returns object of type Gertie
 sub parse {
     my ($text, @args) = @_;
     my $parser = new_parser();
@@ -35,19 +35,19 @@ sub parse {
 # parse wrappers
 sub new_robin_from_file {
     my ($filename, @args) = @_;
-    return parse (Gertie::file_contents ($filename), 'robin_args' => \@args);
+    return Robin->new_robin (parse (Gertie::file_contents ($filename)), @args);
 }
 
 sub new_gertie_from_string {
     my ($text, @args) = @_;
-    my $robin = parse ($text, 'gertie_args' => \@args);
-    unless (defined($robin) && ref($robin) eq 'Gertie::Robin') {
+    my $gertie = parse ($text, 'gertie_args' => \@args);
+    unless (defined($gertie) && ref($gertie) eq 'Gertie') {
 	$::RD_TRACE = 1;
-	$robin = parse($text);
-	confess "Parse failed: return value undefined" unless defined($robin);
-	confess "Parse failed: returned $robin";
+	$gertie = parse($text);
+	confess "Parse failed: return value undefined" unless defined($gertie);
+	confess "Parse failed: returned $gertie";
     }
-    return $robin->gertie;
+    return $gertie;
 }
 
 # load method

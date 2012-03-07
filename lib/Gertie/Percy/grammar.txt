@@ -1,21 +1,27 @@
 { use Gertie;
-  use Gertie::Robin;
   use Data::Dumper;
   my ($gertie, $robin);
   my ($choice_text, $narrative_text);
   my ($lhs, @lhs_stack);
   sub begin_lhs { push @lhs_stack, $lhs; $lhs = shift }
   sub end_lhs { $lhs = pop @lhs_stack }
+  sub strip_meta {
+      my ($t) = @_;
+      if (defined $t) {
+            $t =~ s/\\n/\n/g;
+      	    $t =~ s/\\//g;
+      }
+      return $t;
+  }
   1 }
 
 grammar:
 { $gertie = Gertie->new_gertie (defined($arg{'gertie_args'}) ? @{$arg{'gertie_args'}} : ());
-  $robin = Gertie::Robin->new_robin ($gertie, defined($arg{'robin_args'}) ? @{$arg{'robin_args'}} : ());
   1 }
  statement_list eofile
 { $gertie->add_deferred_rules;
   $gertie->index;
-  $return = $robin;
+  $return = $gertie;
   1 }
 eofile: m/^\Z/
 
@@ -35,11 +41,12 @@ value_list: numeric_constant(s /\s*,\s*/)
 identifier: m/[a-z]\w*/
 numeric_constant: m/[0-9\.e\+\-]+/
 
-preamble: '#preamble' code_or_quote { $robin->preamble_text ($item{'code_or_quote'}); 1 }
+preamble: '#preamble' code_or_quote { $gertie->preamble_text ($item{'code_or_quote'}); 1 }
 code_or_quote: embedded_code_block | string_literal
 embedded_code_block: code_block { $return = '%'.$item{'code_block'}.'%'; 1 }
 code_block: <perl_codeblock>
 string_literal: m/\s*(".*?(?<!\\)"|'.*?(?<!\\)')\s*/
+{ $return = $item[1]; $return =~ s/^["'](.*)['"]$/$1/; 1 }
 
 prompt: '#prompt' code_or_quote
 <error: #prompt is not yet implemented>
@@ -66,8 +73,8 @@ rule: narrative_rule | generic_rule
 narrative_rule:
  lhs_symbol rule_op narrative_term
 { ($choice_text, $narrative_text) = @{$item{'narrative_term'}};
-  $robin->{'choice_text'}->{$item{'lhs_symbol'}} = $choice_text;
-  $robin->{'narrative_text'}->{$item{'lhs_symbol'}} = $narrative_text;
+  $gertie->{'choice_text'}->{$item{'lhs_symbol'}} = strip_meta ($choice_text);
+  $gertie->{'narrative_text'}->{$item{'lhs_symbol'}} = strip_meta ($narrative_text);
   $return = $item{'lhs_symbol'};
   1 }
 
@@ -127,8 +134,8 @@ anonymous_narrative_symbol: narrative_term agent_suffix(?)
 { $return = $gertie->new_anonymous_symbol;
   $gertie->term_owner_by_name->{$return} = $item{'agent_suffix(?)'}->[0] if @{$item{'agent_suffix(?)'}};
   ($choice_text, $narrative_text) = @{$item{'narrative_term'}};
-  $robin->choice_text->{$return} = $choice_text;
-  $robin->narrative_text->{$return} = $narrative_text;
+  $gertie->choice_text->{$return} = strip_meta ($choice_text);
+  $gertie->narrative_text->{$return} = strip_meta ($narrative_text);
   1 }
 
 narrative_term:
@@ -147,11 +154,11 @@ afforded_narrative_literal: choice_text '=>' narrative_literal
 afforded_narrative_code: choice_text '=>' narrative_code
 { $return = [@item{qw(choice_text narrative_code)}]; 1 }
 afforded_narrative_alias: choice_text '=>' narrative_symbol
-{ $return = [$item{'choice_text'}, $robin->{'narrative_text'}->{$item{'narrative_symbol'}}]; 1 }
+{ $return = [$item{'choice_text'}, $gertie->{'narrative_text'}->{$item{'narrative_symbol'}}]; 1 }
 affordance_aliased_narrative_literal: narrative_symbol '=>' narrative_literal
-{ $return = [$robin->{'choice_text'}->{$item{'narrative_symbol'}}, $item{'narrative_literal'}]; 1 }
+{ $return = [$gertie->{'choice_text'}->{$item{'narrative_symbol'}}, $item{'narrative_literal'}]; 1 }
 affordance_aliased_narrative_code: narrative_symbol '=>' narrative_code
-{ $return = [$robin->{'choice_text'}->{$item{'narrative_symbol'}}, $item{'narrative_code'}]; 1 }
+{ $return = [$gertie->{'choice_text'}->{$item{'narrative_symbol'}}, $item{'narrative_code'}]; 1 }
 
 narrative_literal: string_literal
 narrative_code: embedded_code_block

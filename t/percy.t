@@ -31,7 +31,9 @@ while (@basic) {
     my $sym = shift @basic;
     my $expr = "\$parser->$sym(\$text)";
     my $expr_eval = eval ($expr);
-    test_crucial ($failed ? undef : $expr_eval, $text, "'$text' parsed as $sym and recovered");
+    my $text_without_quotes = $expr_eval;
+    $text_without_quotes =~ s/^['"](.*)["']$/$1/;
+    test_crucial ($failed ? undef : $expr_eval, $text_without_quotes, "'$text' parsed as $sym and recovered");
 }
 
 my $t0 = "a -> b c";
@@ -66,19 +68,16 @@ sub test_parser {
 	}
 
 	my $r0 = $sym_eval{'grammar'};
-	test_crucial (ref($r0), "Gertie::Robin", "'$t' grammar returns a Gertie::Robin object");
+	test_crucial (ref($r0), "Gertie", "'$t' grammar returns a Gertie object");
 
-	test_crucial (!$failed && defined($r0->{"gertie"}), 1, "'$t' robin->gertie defined");
-	test_crucial (!$failed && ref($r0->gertie), "Gertie", "'$t' robin->gertie is a Gertie");
-
-	test (!$failed && $r0->gertie->has_symbol_index, 1, "'$t' Gertie is indexed");
-	test (!$failed && $r0->gertie->n_rules, $rules, "'$t' Gertie has $rules rule(s)");
-	test (!$failed && $r0->gertie->n_symbols, $symbols, "'$t' Gertie has $symbols symbol(s)");
+	test (!$failed && $r0->has_symbol_index, 1, "'$t' Gertie is indexed");
+	test (!$failed && $r0->n_rules, $rules, "'$t' Gertie has $rules rule(s)");
+	test (!$failed && $r0->n_symbols, $symbols, "'$t' Gertie has $symbols symbol(s)");
 
 	if ($test_serialization) {
 	    my $rs = $t . ($t =~ /;$/ ? "" : ";");
 	    $rs =~ s/ \(1\)//;
-	    test ($failed ? "" : $r0->gertie->to_string, "$rs\n", "'$t' Gertie serializes to '$rs'");
+	    test ($failed ? "" : $r0->to_string, "$rs\n", "'$t' Gertie serializes to '$rs'");
 	}
     }
 }

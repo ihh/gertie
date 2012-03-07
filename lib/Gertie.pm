@@ -36,6 +36,10 @@ sub new_gertie {
 			       'pgroups' => [],
 			       'param' => {},
 
+			       'choice_text' => undef,
+			       'narrative_text' => undef,
+			       'preamble_text' => "",
+
 			       'symbol_order' => {},
 			       'symbol_list' => [],
 
@@ -606,7 +610,7 @@ sub index_rules {
 
 # subroutine to print grammar
 sub to_string {
-    my ($self) = @_;
+    my ($self, $choice, $narrative) = @_;
     my @text;
     my $fmt = '%.' . $self->output_precision . 'g';
     if (@{$self->agents} > 1) {
@@ -629,11 +633,30 @@ sub to_string {
 									     @$pgroup)) . ");\n";
     }
 
-    my $quant_regex = $self->quantifier_regex . '$';
     for my $lhs (sort @{$self->sym_name}) {
 	next if $lhs =~ /\./;  # don't print rules added by Chomsky-fication
 	next if $lhs eq $self->end;  # don't mess around with 'end' nonterminal
 	my $lhs_id = $self->sym_id->{$lhs};
+	if ($self->is_term->{$lhs_id}) {
+	    my $choice_text = defined($choice) ? $choice->{$lhs} : "";
+	    $choice_text = "" unless defined $choice_text;
+	    my $narrative_text = defined($narrative) ? $narrative->{$lhs} : "";
+	    $narrative_text = "" unless defined $narrative_text;
+	    if (length($choice_text) || length($narrative_text)) {
+		$choice_text =~ s/(?<!\\)"/\\"/g;
+#		$choice_text =~ s/(?<!\\)'/\\'/g;
+		$choice_text =~ s/\n/\\n/g;
+		$narrative_text =~ s/^\%(.*)\%$/$1/;
+		unless ($narrative_text =~ /^\{.*\}$/) {
+		    $narrative_text =~ s/(?<!\\)"/\\"/g;
+#		    $narrative_text =~ s/(?<!\\)'/\\'/g;
+		    $narrative_text =~ s/\n/\\n/g;
+		}
+		my $choice = length($choice_text) ? "\"$choice_text\" => " : "";
+		push @text, "$lhs -> $choice\"$narrative_text\";\n";
+	    }
+	    next;
+	}
 	my @rhs1 = map ($self->sym_name->[$_], keys %{$self->rule_by_lhs_rhs1->{$lhs_id}});
 	for my $rhs1 (sort @rhs1) {
 	    my $rhs1_id = $self->sym_id->{$rhs1};

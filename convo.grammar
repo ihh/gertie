@@ -1,43 +1,54 @@
-@p;
+@p epilogue prologue;
 @c;
-
-conversation -> prologue* chat_up_attempt@1 epilogue* stop@p;
-
-chat_up_attempt@1 ->
-small_talk@1 serious@1? flirt@1
-| small_talk@1 awkward_fail@1
-| small_talk@1 serious@2 flirt@2
-| small_talk@1 serious@2 awkward_fail@2;
-
-flirt@1 ->
-successful_initial_flirt@1 proposition@1
-| failed_initial_flirt@1;
-
-proposition@1 ->
-successful_proposition@1 close@1
-| failed_proposition@1;
-
-
-small_talk@1 ->
-small_talk_turn@1 small_talk_response@2 small_talk@1 (2)
-| small_talk_turn@1 small_talk_interrupt@2 small_talk@2 (1)
-| end (.1);
-
-small_talk_turn@1 ->
-fact@1
-| opinion@1
-| emphasis@1;
-
-small_talk_response@1 ->
-verbal_backchannel@1
-| physical_backchannel@1
-| acknowledgement@1
-| silence@1;
-
-
-
-serious@1 ->
-serious_turn@1 serious_response@2 serious@1 (2)
-| serious_interrupt@2 serious@2 (1)
-| end (.03);
-
+chat_up_attempt@c -> small_talk@c awkward_fail@c (0.25);
+chat_up_attempt@c -> small_talk@c serious@c? flirt@c (0.25);
+chat_up_attempt@c -> small_talk@c serious@p awkward_fail@p (0.25);
+chat_up_attempt@c -> small_talk@c serious@p flirt@p (0.25);
+chat_up_attempt@p -> small_talk@p awkward_fail@p (0.25);
+chat_up_attempt@p -> small_talk@p serious@c awkward_fail@c (0.25);
+chat_up_attempt@p -> small_talk@p serious@c flirt@c (0.25);
+chat_up_attempt@p -> small_talk@p serious@p? flirt@p (0.25);
+conversation -> prologue* chat_up_attempt@c epilogue* stop@p (0.5);
+conversation -> prologue* chat_up_attempt@p epilogue* stop@p (0.5);
+epilogue* -> end (0.5);
+epilogue* -> epilogue epilogue* (0.5);
+flirt@c -> failed_initial_flirt@c (0.5);
+flirt@c -> successful_initial_flirt@c proposition@c (0.5);
+flirt@p -> failed_initial_flirt@p (0.5);
+flirt@p -> successful_initial_flirt@p proposition@p (0.5);
+prologue* -> end (0.5);
+prologue* -> prologue prologue* (0.5);
+proposition@c -> failed_proposition@c (0.5);
+proposition@c -> successful_proposition@c close@c (0.5);
+proposition@p -> failed_proposition@p (0.5);
+proposition@p -> successful_proposition@p close@p (0.5);
+serious@c -> end (0.009900990099);
+serious@c -> serious_interrupt@p serious@p (0.3300330033);
+serious@c -> serious_turn@c serious_response@p serious@c (0.6600660066);
+serious@c? -> end (0.5);
+serious@c? -> serious@c (0.5);
+serious@p -> end (0.009900990099);
+serious@p -> serious_interrupt@c serious@c (0.3300330033);
+serious@p -> serious_turn@p serious_response@c serious@p (0.6600660066);
+serious@p? -> end (0.5);
+serious@p? -> serious@p (0.5);
+small_talk@c -> end (0.03225806452);
+small_talk@c -> small_talk_turn@c small_talk_interrupt@p small_talk@p (0.3225806452);
+small_talk@c -> small_talk_turn@c small_talk_response@p small_talk@c (0.6451612903);
+small_talk@p -> end (0.03225806452);
+small_talk@p -> small_talk_turn@p small_talk_interrupt@c small_talk@c (0.3225806452);
+small_talk@p -> small_talk_turn@p small_talk_response@c small_talk@p (0.6451612903);
+small_talk_response@c -> acknowledgement@c (0.25);
+small_talk_response@c -> physical_backchannel@c (0.25);
+small_talk_response@c -> silence@c (0.25);
+small_talk_response@c -> verbal_backchannel@c (0.25);
+small_talk_response@p -> acknowledgement@p (0.25);
+small_talk_response@p -> physical_backchannel@p (0.25);
+small_talk_response@p -> silence@p (0.25);
+small_talk_response@p -> verbal_backchannel@p (0.25);
+small_talk_turn@c -> emphasis@c (0.3333333333);
+small_talk_turn@c -> fact@c (0.3333333333);
+small_talk_turn@c -> opinion@c (0.3333333333);
+small_talk_turn@p -> emphasis@p (0.3333333333);
+small_talk_turn@p -> fact@p (0.3333333333);
+small_talk_turn@p -> opinion@p (0.3333333333);

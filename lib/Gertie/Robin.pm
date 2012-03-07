@@ -26,10 +26,6 @@ sub new_robin {
 
 			       'inside' => undef,
 
-			       'choice_text' => undef,
-			       'narrative_text' => undef,
-			       'preamble_text' => "",
-
 			       'turns' => {},
 			       'max_rounds' => undef,
 			       'current_turn' => undef,
@@ -38,7 +34,6 @@ sub new_robin {
 
 			       'trace_filename' => undef,
 			       'trace_fh' => undef,
-			       'text_filename' => undef,
 			       'default_save_filename' => 'GAME',
 			       'initial_restore_filename' => undef,
 
@@ -52,11 +47,11 @@ sub new_robin {
 sub new_from_file {
     my ($class, $filename, %args) = @_;
     my $gertie = Gertie->new_from_file ($filename, defined($args{'gertie_args'}) ? @{$args{'gertie_args'}} : ());
-    my $self = $class->new_robin ($gertie, 'text_filename' => "$filename.text", %args);
-    $self->load_text_from_file ($self->text_filename) if -e $self->text_filename;
+    my $self = $class->new_robin ($gertie, %args);
     # return
     return $self;
 }
+
 
 # Color scheme setters
 sub use_cool_color_scheme {
@@ -91,55 +86,6 @@ sub use_boring_color_scheme {
 sub reset_color_newline {
     my ($self) = @_;
     return $self->reset_color . "\n";
-}
-
-# Initializers for narrative text database
-sub load_text_from_file {
-    my ($self, $filename) = @_;
-    local *FILE;
-    local $_;
-    open FILE, "<$filename" or confess "Couldn't open $filename: $!";
-    $self->init_text_parser;
-
-    while (<FILE>) { $self->parse_text_line ($_) }
-    $self->cleanup_text_parser;
-    close FILE;
-}
-
-sub load_text_from_string {
-    my ($self, @text) = @_;
-    @text = map ("$_\n", map (split(/\n/), join ("", @text)));
-    $self->init_text_parser;
-    for my $line (@text) { $self->parse_text_line ($line) }
-    $self->cleanup_text_parser;
-}
-
-# Parse/build methods for narrative text database
-sub init_text_parser {
-    my ($self) = @_;
-    $self->{'choice_text'} = {};
-    $self->{'narrative_text'} = {};
-    $self->{'current_text_symbol'} = undef;
-}
-
-sub cleanup_text_parser {
-    my ($self) = @_;
-    delete $self->{'current_text_symbol'};
-}
-
-sub parse_text_line {
-    my ($self, $line) = @_;
-    if ($line =~ /^\s*>\s*(\S+)\s*(.*)$/) {
-	my ($name, $choice) = ($1, $2);
-	carp "Multiple definitions of $name -- overwriting" if defined $self->choice_text->{$name};
-	$self->choice_text->{$name} = $choice;
-	$self->narrative_text->{$name} = "";
-	$self->current_text_symbol ($name);
-    } elsif (defined $self->current_text_symbol) {
-	$self->narrative_text->{$self->current_text_symbol} .= $line;
-    } else {
-	$self->{'preamble_text'} .= $line;
-    }
 }
 
 # Play a game interactively over an ANSI terminal
@@ -683,7 +629,7 @@ PROMPT:
 
 sub menu_text {
     my ($self, @menu) = @_;
-    my $choice_text = $self->choice_text;
+    my $choice_text = $self->gertie->choice_text;
     my $tidy = sub { local $_ = shift; s/\@\w+$//; return $_ };
     return map (length($_)
 		? (defined($choice_text) && defined($choice_text->{$_}) && length($choice_text->{$_})
@@ -755,8 +701,8 @@ sub story_excerpt {
     my ($self, $first_turn, $last_turn) = @_;
     $first_turn = $self->story_episodes - 1 unless defined $first_turn;
     $last_turn = $first_turn unless defined $last_turn;
-    my @out = ($self->preamble_text);
-    my $narrative_text = $self->narrative_text;
+    my @out = ($self->gertie->preamble_text);
+    my $narrative_text = $self->gertie->narrative_text;
     for my $turn (1..$last_turn) {
 	my $sym = $self->seq->[$turn - 1];
 	if (defined($narrative_text) && defined($narrative_text->{$sym})) {

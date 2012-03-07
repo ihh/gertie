@@ -3,7 +3,7 @@ CONVO = convo.grammar
 GOLDIE = goldilocks.grammar
 
 debug-turn: cparser
-	bin/robin.pl -cparser -grammar $(GRAMMAR) -text $(GRAMMAR).text -verbose 9 -color
+	bin/robin.pl -cparser -grammar $(GRAMMAR) -verbose 9 -color
 
 turn: cparser
 	bin/robin.pl -cparser $(GRAMMAR)

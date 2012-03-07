@@ -24,9 +24,8 @@ my $verbose = 0;
 my $color = 0;
 my $c_parser = 0;
 my $render_html = 0;
-my ($grammar_file, $text_file, $game_file, $trace_file, $seed, $rounds);
+my ($grammar_file, $game_file, $trace_file, $seed, $rounds);
 GetOptions ("grammar=s"   => \$grammar_file,
-	    "text=s"   => \$text_file,
 	    "trace=s"  => \$trace_file,
 	    "verbose=i"  => \$verbose,
 	    "seed=i"  => \$seed,
@@ -47,7 +46,6 @@ my $robin = Gertie::Robin->new_from_file
      'verbose' => $verbose,
      'inside_args' => [ 'verbose' => $verbose ],
      'gertie_args' => [ 'verbose' => $verbose, 'use_c_parser' => $c_parser ],
-     defined($text_file) ? ('text_filename' => $text_file) : (),  # don't override default
      'trace_filename' => $trace_file,
      'initial_restore_filename' => $game_file,
      'rand_seed' => $seed,
