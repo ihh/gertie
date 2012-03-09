@@ -1,4 +1,7 @@
-all: $(subst .utt,.mutt,*/*.utt)
+all: $(subst .utt,.mutt,$(wildcard */*.utt))
+
+clean:
+	rm */*.mutt
 
 # .mutt = Mapped UTTerances
 %.mutt: %.utt
