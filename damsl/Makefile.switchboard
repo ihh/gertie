@@ -1,0 +1,7 @@
+all: $(subst .utt,.mutt,*/*.utt)
+
+# .mutt = Mapped UTTerances
+%.mutt: %.utt
+	./map-transcript.pl $< >$@
+
+.SECONDARY:
