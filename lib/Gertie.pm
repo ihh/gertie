@@ -685,7 +685,9 @@ sub quote_text {
     return length($text) ? "\"$text\"" : "";
 }
 
-# subroutine to test whether grammar contains any "empty" nonterminals (disallowed for stochastic Earley parsing)
+# subroutine to test whether grammar contains any "empty" nonterminals, apart from "end"
+# (empty nonterminals are nonterminals with finite-probability empty derivation trees;
+#  they break the stochastic Earley parsing algorithm - see Stolcke, 1995)
 sub has_empty_nonterms {
     my ($self) = @_;
     my %p_empty = %{$self->p_empty};
