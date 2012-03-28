@@ -685,6 +685,14 @@ sub quote_text {
     return length($text) ? "\"$text\"" : "";
 }
 
+# subroutine to test whether grammar contains any "empty" nonterminals (disallowed for stochastic Earley parsing)
+sub has_empty_nonterms {
+    my ($self) = @_;
+    my %p_empty = %{$self->p_empty};
+    delete $p_empty{$self->end_id};
+    return grep ($_ > 0, values (%p_empty)) > 0;
+}
+
 # subroutine to tokenize a sequence
 sub tokenize {
     my ($self, @seq) = @_;
